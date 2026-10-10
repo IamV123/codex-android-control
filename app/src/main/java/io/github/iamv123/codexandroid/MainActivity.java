@@ -48,7 +48,7 @@ public final class MainActivity extends Activity {
         root.setOnApplyWindowInsetsListener((view,insets)->{Insets bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout()),keyboard=insets.getInsets(WindowInsets.Type.ime());view.setPadding(bars.left,bars.top,bars.right,Math.max(bars.bottom,keyboard.bottom));return insets;});
         ScrollView scroll=new ScrollView(this);LinearLayout page=new LinearLayout(this);page.setOrientation(LinearLayout.VERTICAL);page.setPadding(dp(20),dp(20),dp(20),dp(16));scroll.addView(page);
         root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);root.requestApplyInsets();
-        text(page,"Codex 安卓助手",27);text(page,"Android 13+ · 测试版 0.1.8\n仅允许你勾选的应用。电脑端运行期间断网会自动等待重连；电脑或电脑端程序重启后地址会变，需要用新配对码重新连接。",15);
+        text(page,"Codex 安卓助手",27);text(page,"Android 13+ · 测试版 0.1.9\n仅允许你勾选的应用。电脑端运行期间断网会自动等待重连；电脑或电脑端程序重启后地址会变，需要用新配对码重新连接。",15);
         button(page,"开启通知",v->requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},7));
         button(page,"开启无障碍服务",v->startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
         text(page,"电脑配对码",19);

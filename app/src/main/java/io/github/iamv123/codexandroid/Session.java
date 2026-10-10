@@ -22,7 +22,7 @@ final class Session {
     volatile ConnectionKeys connection;
     long tx,rx;
     private Session(JSONObject pair,Set<String> grants,long minutes)throws Exception{
-        if(pair.getInt("v")!=3)throw new IllegalArgumentException("请刷新电脑配对页，使用v0.1.8新版二维码");
+        if(pair.getInt("v")!=3)throw new IllegalArgumentException("请刷新电脑配对页，使用新版电脑端的二维码");
         URI url=new URI(pair.getString("url"));
         if(!"https".equals(url.getScheme())||url.getHost()==null||url.getRawUserInfo()!=null||url.getPort()!=-1||(url.getPath()!=null&&!url.getPath().isEmpty()&&!url.getPath().equals("/"))||url.getRawQuery()!=null||url.getRawFragment()!=null)throw new SecurityException("配对地址必须是HTTPS域名");
         endpoint="https://"+url.getHost();pairId=pair.getString("session");
@@ -55,5 +55,5 @@ final class Session {
         stopped=true;Arrays.fill(master,(byte)0);Arrays.fill(pairKey,(byte)0);if(connection!=null)connection.clear();
         if(current==this){current=null;if(!lastStatus.startsWith("连接失败"))lastStatus="已停止并撤销授权；可调整勾选后重新确认开始";}
     }
-    JSONObject status()throws Exception{return new JSONObject().put("apps",new org.json.JSONArray(grants)).put("version","0.1.8").put("remainingSeconds",Math.max(0,(expires-SystemClock.elapsedRealtime())/1000));}
+    JSONObject status()throws Exception{return new JSONObject().put("apps",new org.json.JSONArray(grants)).put("version","0.1.9").put("remainingSeconds",Math.max(0,(expires-SystemClock.elapsedRealtime())/1000));}
 }
