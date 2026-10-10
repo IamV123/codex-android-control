@@ -2,17 +2,48 @@
 
 让 Codex 通过你自己的电脑协助操作 Android 手机。**在手机上勾选哪些应用，就允许操作哪些应用；默认一个都不授权。** 无需 root、ADB 或 VPN。
 
-当前版本为 **v0.1.8 实验测试版**，最低 Android 13，按 Android 16 / API 36 编译。默认使用 Cloudflare 临时通道：电脑或电脑端程序重启后地址会变，需要在手机上用新配对码重新连接；实际操作仍需要手机解锁和两端联网。
+当前版本为 **v0.1.9 实验测试版**，最低 Android 13。默认使用 Cloudflare 临时通道：电脑或电脑端程序重启后地址会变，需要在手机上重新扫码连接；实际操作需要手机解锁、两端联网。
 
-下载（v0.1.8）：
+## 最简单的用法（3 步）
 
-- 手机 App：[codex-android-control-v0.1.8.apk](https://github.com/IamV123/codex-android-control/releases/download/v0.1.8/codex-android-control-v0.1.8.apk)
-- 电脑端：[codex-android-control-v0.1.8-desktop.zip](https://github.com/IamV123/codex-android-control/releases/download/v0.1.8/codex-android-control-v0.1.8-desktop.zip)
-- 全部版本：[Releases 页面](https://github.com/IamV123/codex-android-control/releases)
+需要：Windows 10/11 电脑，已装好并登录 Codex；Android 13 或更新的手机，并设置了锁屏密码。
 
-## 小白教程：从一部新手机开始
+1. **电脑**：把这句话发给 Codex：
 
-照着下面一步一步做。每一步都写了“做对了会看到什么”，看到的不一样，就去下面的[遇到问题怎么办](#遇到问题怎么办)查。
+   > 按 https://github.com/IamV123/codex-android-control 配置
+
+   Codex 运行命令时请求权限，点同意。几分钟后电脑会打开一个配对网页（地址是 `http://127.0.0.1:18765/`，每台电脑都一样，只能在本机打开）。然后**完全退出 Codex（包括右下角托盘图标）再重新打开**。
+2. **手机**：用手机相机扫配对网页上的“下载手机 App”二维码，下载并安装 App。打开 App，点 **开启通知**、**开启无障碍服务**（在列表里找到“Codex 安卓助手（手动授权）”打开）。
+3. **连接**：用手机相机扫配对网页上的 **配对二维码**，选择用 Codex 安卓助手打开；勾选允许操作的应用，点 **确认并开始**，验证锁屏密码。显示 **已连接电脑** 就可以了。
+
+之后在 Codex 里新建任务，直接说，例如：“用手机打开抖音刷5个视频”。电脑重启后，双击桌面上的“**启动 Codex 手机助手**”，手机重新扫配对二维码。
+
+卡住了，看下面的[详细教程](#详细教程手动安装或出问题时对照)和[遇到问题怎么办](#遇到问题怎么办)。
+
+## 给 Codex 的配置说明
+
+> 用户让你“按本仓库配置”时，照下面做。不需要你操作手机。
+
+1. 在 PowerShell 中运行下面 4 行。需要联网，并且会写入用户目录（`%LOCALAPPDATA%\CodexAndroidControl` 和 `%USERPROFILE%\.codex\config.toml`）。如果沙盒拦截了网络或写入，请向用户申请权限。
+
+   ```powershell
+   $f = Join-Path $env:TEMP 'cac-install.ps1'
+   [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+   Invoke-WebRequest -UseBasicParsing 'https://github.com/IamV123/codex-android-control/releases/latest/download/install.ps1' -OutFile $f
+   powershell -NoProfile -ExecutionPolicy Bypass -File $f
+   ```
+
+2. 安装大约需要 3–6 分钟。看到“安装完成”后，把输出里“接下来”那几条**原样**告诉用户。
+3. 安装会打开一个电脑端窗口，**不要关闭它**。也不要把配对码或二维码内容发到聊天里。
+4. 出错时，把错误原文告诉用户，并对照本页“遇到问题怎么办”。重新运行同样的命令是安全的，相当于升级或重装。
+5. 用户重新打开 Codex 后，手机工具名都以 `phone_` 开头，直接调用即可，不要写脚本。
+
+## 详细教程（手动安装，或出问题时对照）
+
+不想用 Codex 自动配置，或者自动配置出了问题，就照下面一步一步做。每一步都写了“做对了会看到什么”；看到的不一样，就去[遇到问题怎么办](#遇到问题怎么办)查。
+
+- 手机 App：[codex-android-control.apk](https://github.com/IamV123/codex-android-control/releases/latest/download/codex-android-control.apk)
+- 电脑端：[最新版本页面](https://github.com/IamV123/codex-android-control/releases/latest)，下载名字以 `-desktop.zip` 结尾的文件
 
 ### 0. 先确认你有这些
 
@@ -21,17 +52,15 @@
 - 手机已经设置了 **锁屏密码**（数字、图案或密码都行）。没设的话：手机“设置 → 安全/密码与安全 → 锁屏密码”先设一个。
 - 电脑和手机都能上网。**不需要连同一个 Wi-Fi，不需要 VPN。**
 
-### 1. 电脑：安装 Node.js（只做一次）
+### 1. 电脑：Node.js（一般可以跳过）
 
-1. 电脑浏览器打开 <https://nodejs.org>，点左边带 **LTS** 字样的下载按钮，下载 Windows 安装包（文件名以 `.msi` 结尾）。
-2. 双击安装包，一路点 **Next**，最后点 **Install**，再点 **Finish**。中间的选项都不用改。
-3. 检查是否装好：按键盘 `Win + R`，输入 `cmd`，回车；在弹出的黑色窗口里输入 `node -v` 回车。
-   - **做对了**：显示 `v22.x.x` 或更大的数字（例如 `v24.11.0`）。
-   - 显示“不是内部或外部命令”：先重启电脑再试一次；还不行就重新安装一遍。
+电脑上没有 Node.js 时，第 4 步的 `Start-Desktop.cmd` 会自动下载一个免安装版，放在电脑端文件夹里，不需要管理员权限。所以这一步一般可以跳过。
+
+想自己装也可以：打开 <https://nodejs.org>，下载带 **LTS** 字样的 Windows 安装包（`.msi`），一路点 **Next → Install → Finish**。
 
 ### 2. 电脑：下载并解压电脑端（只做一次）
 
-1. 下载 [codex-android-control-v0.1.8-desktop.zip](https://github.com/IamV123/codex-android-control/releases/download/v0.1.8/codex-android-control-v0.1.8-desktop.zip)。浏览器提示“不常下载”时，选“保留”。
+1. 打开[最新版本页面](https://github.com/IamV123/codex-android-control/releases/latest)，下载名字以 `-desktop.zip` 结尾的文件。浏览器提示“不常下载”时，选“保留”。
 2. 找到下载好的 zip 文件，**右键 → 全部解压缩**，解压到一个固定的位置，例如 `D:\CodexAndroid`。
    - 一定要先解压，**不要在 zip 里面直接双击运行**。
    - 文件夹路径里不要有英文单引号 `'`。
@@ -50,14 +79,14 @@
 
 1. 双击 **`Start-Desktop.cmd`**。第一次运行会自动下载需要的组件，可能要几分钟，窗口里滚动文字是正常的。
 2. 窗口显示 `正在连接手机通道，约需 1–3 分钟，请不要关闭此窗口…`，耐心等。
-3. **做对了**：窗口显示 `已就绪：配对网页 http://127.0.0.1:18765/ …`，浏览器自动打开“Codex 安卓助手”网页，上面有一个 **二维码**、一段配对码和一行“连接地址：https://….trycloudflare.com”。浏览器没自动打开，就自己在浏览器地址栏输入 `http://127.0.0.1:18765/`。
+3. **做对了**：窗口显示 `已就绪：配对网页 http://127.0.0.1:18765/ …`，浏览器自动打开“Codex 安卓助手”网页，上面有两个二维码：**配对二维码**（手机 App 装好后扫这个）和 **下载手机 App** 的二维码，还有一段配对码和一行“连接地址：https://….trycloudflare.com”。浏览器没自动打开，就自己在浏览器地址栏输入 `http://127.0.0.1:18765/`。
 4. **这个黑色窗口一直开着，不要关**。关了手机就断开。使用期间也不要让电脑睡眠（“设置 → 系统 → 电源”里把睡眠改成“从不”）。
 5. 网页上的“新配对有效期”默认 **1 天**，一般不用改。
 6. **配对码和二维码等于密码**，不要截图发给别人，不要发到群里。
 
 ### 5. 手机：安装 App（只做一次）
 
-1. 手机浏览器打开 [codex-android-control-v0.1.8.apk](https://github.com/IamV123/codex-android-control/releases/download/v0.1.8/codex-android-control-v0.1.8.apk) 下载。
+1. 用手机相机扫配对网页上的“下载手机 App”二维码；或者在手机浏览器打开 [codex-android-control.apk](https://github.com/IamV123/codex-android-control/releases/latest/download/codex-android-control.apk) 下载。
    - 手机打不开 GitHub：在电脑上下载这个 APK，用数据线连上手机（手机上选“传输文件”），把 APK 复制到手机的“Download/下载”文件夹，再用手机“文件管理”打开它。
    - 不建议用微信传 APK，微信里经常打不开安装包。
 2. 点下载好的文件开始安装。
@@ -78,7 +107,7 @@
 
 ### 7. 手机：配对并开始（每次电脑端重新启动后都要做）
 
-1. **扫码**：用手机 **系统相机** 或 **系统自带的“扫一扫”** 扫电脑网页上的二维码，点识别出来的链接，选择用 **Codex 安卓助手** 打开。配对码会自动填进 App 的“电脑配对码”框里。
+1. **扫码**：用手机 **系统相机** 或 **系统自带的“扫一扫”** 扫电脑网页上的 **配对二维码**（不是“下载手机 App”那个），点识别出来的链接，选择用 **Codex 安卓助手** 打开。配对码会自动填进 App 的“电脑配对码”框里。
    - **不要用微信或支付宝扫一扫**，它们会提示“无法打开”。
    - 扫码后只显示一段文字、没有打开 App：长按复制那一整段以 `codexandroid://pair?data=` 开头的文字，打开 Codex 安卓助手，粘贴到“电脑配对码”框里。
    - 框里如果已经有旧配对码，先把旧的**全部删掉**，再粘贴新的。
@@ -101,16 +130,18 @@
 
 - **电脑一直开着、只是手机断网**：网络恢复后会自动重连，不用重新扫码。
 - **电脑重启过，或者关掉过黑色窗口**：
-  1. 双击 `Start-Desktop.cmd`，等网页打开（第 4 步）。
+  1. 双击桌面上的“**启动 Codex 手机助手**”（这是让 Codex 自动配置时创建的；手动安装的就双击 `Start-Desktop.cmd`），等网页打开。
   2. 手机打开 Codex 安卓助手。如果底部还显示在连接，先点 **立即停止**。
-  3. 删掉框里的旧配对码，重新扫电脑网页上的新二维码（第 7 步）。勾选的应用会保留，直接点 **确认并开始**。
+  3. 删掉框里的旧配对码，重新扫网页上新的 **配对二维码**（第 7 步）。勾选的应用会保留，直接点 **确认并开始**。
 - 想让电脑开机后自动启动电脑端，可以双击 `Enable-AutoStart.cmd`（取消用 `Disable-AutoStart.cmd`）。自动启动时没有黑色窗口，需要自己在浏览器打开 `http://127.0.0.1:18765/`，手机仍然要扫新的二维码。
 
 ## 遇到问题怎么办
 
 | 你看到的 | 怎么办 |
 | --- | --- |
-| 双击 `.cmd` 后提示“未找到 Node.js”或“Node.js 版本过旧” | 做第 1 步安装 Node.js，装完重启电脑，再双击一次。 |
+| 让 Codex 配置时，它说没有权限联网或不能写文件 | 在 Codex 弹出的权限请求里点同意；没有弹窗就跟它说“允许联网并写入用户目录，重新运行安装命令”。 |
+| 安装命令报错，提示下载失败 | 网络不稳定，无法访问 GitHub。换个网络（例如手机热点）后，让 Codex 重新运行同样的命令。 |
+| 提示 Node.js 下载失败 | 网络问题。重新运行一次；还不行就按第 1 步自己装 Node.js，再重新运行。 |
 | 双击后打开的是记事本 | 你双击的是 `.ps1` 文件。请双击同名的 `.cmd` 文件。 |
 | 提示“依赖安装失败” | 检查电脑网络，再双击一次 `Start-Desktop.cmd`（程序会自动换国内镜像再试一次）。 |
 | 提示“通道程序下载校验失败”或下载报错 | 电脑下载组件时网络不稳定。换个网络（例如手机热点）后再双击一次 `Start-Desktop.cmd`。 |
@@ -137,6 +168,13 @@
 | Codex 说 `phone_locked`（手机已锁屏） | 解锁手机，保持亮屏。 |
 | Codex 说 `phone_authorization_expired` 或 `session_ended` | 授权到期或已停止。在手机上重新点“确认并开始”。 |
 | 电脑网页出现“已核对手机，解除未确认操作阻塞”按钮 | 上一个操作没有收到结果。先看手机上那个操作到底做了没有，再点这个按钮，然后让 Codex 继续。 |
+
+## v0.1.9 改动
+
+- 新增一键安装：只要对 Codex 说“按 https://github.com/IamV123/codex-android-control 配置”，它会运行 `install.ps1`。安装脚本会下载并校验电脑端，安装到 `%LOCALAPPDATA%\CodexAndroidControl`，接入 Codex，在桌面创建“启动 Codex 手机助手”快捷方式，并启动电脑端。重复运行就是升级。
+- 电脑没有 Node.js 时，自动下载固定版本的免安装 Node.js（先校验 SHA256，下载失败时改用国内镜像），不需要管理员权限。
+- 电脑配对网页新增“下载手机 App”二维码，指向最新版 APK；原来的二维码标为“配对二维码”。
+- 发布附件新增不带版本号的 `codex-android-control.apk`，所以下载链接 `releases/latest/download/codex-android-control.apk` 一直指向最新版。
 
 ## v0.1.8 改动
 
@@ -212,7 +250,7 @@ v0.1.3 已在真机完成淘宝输入“卫生纸”、搜索并打开首个标�
 
 ## 升级与进阶说明
 
-第一次安装请看上面的[小白教程](#小白教程从一部新手机开始)。下面是升级和进阶用法。
+第一次安装请看上面的[最简单的用法](#最简单的用法3-步)。下面是升级和进阶用法。
 
 - **手机升级**：下载新版 APK 直接覆盖安装，不用卸载。装完检查无障碍服务仍是打开的，然后重新扫码点“确认并开始”。
 - **电脑升级**：先在手机点“立即停止”，关掉电脑端黑色窗口，把新版 zip 解压覆盖到原来的文件夹（保留里面的 `.runtime` 文件夹），再双击 `Start-Desktop.cmd`。文件夹位置没变就不用重新运行 `Connect-Codex.cmd`。
