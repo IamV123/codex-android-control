@@ -14,21 +14,22 @@ import java.util.Set;
 final class Session {
     static volatile Session current;
     static volatile String lastStatus="未授权 / 未连接";
-    final String endpoint, id, token;
+    final String endpoint, id, token, pairId, clientId, pairToken;
     final byte[] key;
+    final byte[] pairKey;
     final Set<String> grants;
     final long expires;
     volatile boolean stopped;
     long tx, rx;
     private Session(JSONObject pair, Set<String> grants, int minutes) throws Exception {
-        if (pair.getInt("v") != 1) throw new IllegalArgumentException("不支持的配对版本");
+        if (pair.getInt("v") != 2) throw new IllegalArgumentException("请刷新电脑配对页，使用新版二维码");
         URI url = new URI(pair.getString("url"));
         if (!"https".equals(url.getScheme()) || url.getHost() == null || url.getRawUserInfo() != null || url.getPort() != -1 || (url.getPath() != null && !url.getPath().isEmpty() && !url.getPath().equals("/")) || url.getRawQuery() != null || url.getRawFragment() != null) throw new SecurityException("配对地址必须是 HTTPS 域名");
-        endpoint = "https://" + url.getHost(); id = pair.getString("session");
-        if (!id.matches("[a-f0-9]{32}")) throw new SecurityException("配对会话格式错误");
+        endpoint = "https://" + url.getHost(); pairId = pair.getString("session");
+        if (!pairId.matches("[a-f0-9]{32}")) throw new SecurityException("配对会话格式错误");
         byte[] master = Base64.getUrlDecoder().decode(pair.getString("key"));
         if (master.length != 32) throw new SecurityException("配对密钥格式错误");
-        try { key = Crypto.derive(master, id, "encryption"); token = Base64.getUrlEncoder().withoutPadding().encodeToString(Crypto.derive(master,id,"auth")); }
+        try { ConnectionKeys keys=new ConnectionKeys(master,pairId,ConnectionKeys.newClientId());id=keys.id;clientId=keys.clientId;key=keys.key;token=keys.token;pairKey=keys.pairKey;pairToken=keys.pairToken; }
         finally { Arrays.fill(master, (byte) 0); }
         if (minutes != 10 && minutes != 30) throw new SecurityException("invalid_duration");
         this.grants = Set.copyOf(grants);
@@ -50,6 +51,6 @@ final class Session {
         if (!live()) throw new SecurityException("session_ended");
         if (!unlocked(ctx)) { stop(); throw new SecurityException("phone_locked_session_revoked"); }
     }
-    synchronized void stop() { stopped = true; Arrays.fill(key, (byte) 0); if (current == this) {current = null;if(!lastStatus.startsWith("连接失败"))lastStatus="会话已停止，请重新配对";} }
-    JSONObject status() throws Exception { return new JSONObject().put("apps", new org.json.JSONArray(grants)).put("version","0.1.5").put("remainingSeconds", Math.max(0, (expires-SystemClock.elapsedRealtime())/1000)); }
+    synchronized void stop() { stopped = true; Arrays.fill(key, (byte) 0); Arrays.fill(pairKey,(byte)0); if (current == this) {current = null;if(!lastStatus.startsWith("连接失败"))lastStatus="会话已停止；可调整勾选后重新确认开始";} }
+    JSONObject status() throws Exception { return new JSONObject().put("apps", new org.json.JSONArray(grants)).put("version","0.1.6").put("remainingSeconds", Math.max(0, (expires-SystemClock.elapsedRealtime())/1000)); }
 }

@@ -34,14 +34,14 @@ public final class MainActivity extends Activity {
         LinearLayout page = new LinearLayout(this); page.setOrientation(LinearLayout.VERTICAL); page.setPadding(32,40,32,40);
         scroll.addView(page); setContentView(scroll);
         text(page,"Codex 安卓助手",28);
-        text(page,"Android 13+ · 测试版 0.1.5\n你勾选的应用可连续读取和操作，不再逐次确认。默认无应用授权。",16);
+        text(page,"Android 13+ · 测试版 0.1.6\n你勾选的应用可连续读取和操作，不再逐次确认。默认无应用授权。",16);
         state=text(page,"",16);
         button(page,"1. 开启通知",v->requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},7));
         button(page,"2. 开启无障碍服务",v->startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
         text(page,"3. 粘贴电脑网页上的配对码（或用系统相机扫码打开）",16);
         pairing=new EditText(this); pairing.setHint("codexandroid://pair?data=…"); pairing.setSingleLine(false); pairing.setSaveEnabled(false); pairing.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS); page.addView(pairing);
         text(page,"4. 勾选本次允许使用的应用",20);
-        text(page,"未勾选的应用不能读取或操作，返回和回桌面也会拒绝。系统权限设置、安装器和本应用不列入可选应用。更改勾选时先停止旧会话，再重新授权。",14);
+        text(page,"未勾选的应用不能读取或操作，返回和回桌面也会拒绝。更改勾选会停止旧会话，请重新本机确认开始；有效期内可使用同一配对码，程序会建立新的加密连接。",14);
         Intent launcher=new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
         List<ResolveInfo> list=getPackageManager().queryIntentActivities(launcher,PackageManager.ResolveInfoFlags.of(0));
         list.sort(Comparator.comparing(r->r.loadLabel(getPackageManager()).toString()));
@@ -82,5 +82,5 @@ public final class MainActivity extends Activity {
                 .setPositiveButton("验证身份并开始",(d,w)->startActivityForResult(km.createConfirmDeviceCredentialIntent("开启 Codex 手机会话","确认你在手机上勾选的应用和授权时限"),AUTHORIZE)).show();
         }catch(Exception e){fail(e.getMessage()==null?"配对码无效":e.getMessage());}
     }
-    @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==AUTHORIZE&&proposed!=null){if(result==RESULT_OK){Session.current=proposed;proposed=null;Session.lastStatus="正在启动连接";pairing.setText("");try{startForegroundService(new Intent(this,BridgeService.class));}catch(RuntimeException e){Session.lastStatus="连接失败：系统未允许启动连接服务";Session.current.stop();fail(Session.lastStatus);}refresh();scroll.post(()->scroll.smoothScrollTo(0,0));}else{proposed.stop();proposed=null;}}}
+    @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==AUTHORIZE&&proposed!=null){if(result==RESULT_OK){Session.current=proposed;proposed=null;Session.lastStatus="正在启动连接";try{startForegroundService(new Intent(this,BridgeService.class));}catch(RuntimeException e){Session.lastStatus="连接失败：系统未允许启动连接服务";Session.current.stop();fail(Session.lastStatus);}refresh();scroll.post(()->scroll.smoothScrollTo(0,0));}else{proposed.stop();proposed=null;}}}
 }

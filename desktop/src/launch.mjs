@@ -47,7 +47,7 @@ try {
   broker.createSession(endpoint);
   let reachable=false;
   for(let attempt=0;attempt<3;attempt++){
-    try{const r=await fetch(endpoint+'/phone/v1/exchange',{method:'POST',redirect:'error',signal:AbortSignal.timeout(6000)});if(r.status===401){reachable=true;break;}}catch{}
+    try{const r=await fetch(endpoint+'/phone/v2/connect',{method:'POST',redirect:'error',signal:AbortSignal.timeout(6000)});if(r.status===401){reachable=true;break;}}catch{}
     await new Promise(r=>setTimeout(r,1500));
   }
   if(!reachable)throw new Error('Public HTTPS route is unreachable. No ready session will be advertised.');

@@ -35,6 +35,7 @@ public final class BridgeService extends Service {
         return START_NOT_STICKY;
     }
     private void loop(){JSONObject response=null;try{
+        active.requireLive(this);connect();lastSuccess=SystemClock.elapsedRealtime();
         while(active.live()){
             active.requireLive(this);
             try{
@@ -65,12 +66,26 @@ public final class BridgeService extends Service {
     private JSONObject exchange(JSONObject payload)throws Exception{
         long seq=++active.tx;Crypto.Envelope enc=Crypto.seal(active.key,active.id,"phone",seq,payload.toString());
         byte[] bytes=new JSONObject().put("session",active.id).put("seq",seq).put("nonce",enc.nonce).put("data",enc.data).toString().getBytes(StandardCharsets.UTF_8);
-        HttpsURLConnection c=PhoneHttp.open(active.endpoint,active.token,bytes.length);connection=c;
+        HttpsURLConnection c=PhoneHttp.open(active.endpoint,"/phone/v2/exchange",active.token,bytes.length);connection=c;
         try{
             try(OutputStream out=c.getOutputStream()){out.write(bytes);}
             JSONObject frame=new JSONObject(new String(PhoneHttp.read(c),StandardCharsets.UTF_8));long received=frame.getLong("seq");
             if(!active.id.equals(frame.getString("session"))||received<=active.rx)throw new SecurityException("replay_or_wrong_session");
             JSONObject data=new JSONObject(Crypto.open(active.key,active.id,"desktop",received,frame.getString("nonce"),frame.getString("data")));active.rx=received;return data;
+        }finally{connection=null;c.disconnect();}
+    }
+    private void connect()throws Exception{
+        JSONObject payload=new JSONObject().put("event","connect").put("protocol",2).put("client",active.clientId).put("phone",active.status());
+        Crypto.Envelope enc=Crypto.seal(active.pairKey,active.pairId,"phone-connect",1,payload.toString());
+        byte[] bytes=new JSONObject().put("session",active.pairId).put("seq",1).put("nonce",enc.nonce).put("data",enc.data).toString().getBytes(StandardCharsets.UTF_8);
+        HttpsURLConnection c=PhoneHttp.open(active.endpoint,"/phone/v2/connect",active.pairToken,bytes.length);connection=c;
+        try{
+            try(OutputStream out=c.getOutputStream()){out.write(bytes);}
+            JSONObject frame=new JSONObject(new String(PhoneHttp.read(c),StandardCharsets.UTF_8));
+            if(!active.id.equals(frame.getString("session"))||frame.getLong("seq")!=1)throw new SecurityException("invalid_connect_response");
+            JSONObject result=new JSONObject(Crypto.open(active.key,active.id,"desktop",1,frame.getString("nonce"),frame.getString("data")));
+            if(!"connected".equals(result.optString("event"))||!active.clientId.equals(result.optString("client")))throw new SecurityException("invalid_connect_response");
+            active.rx=1;java.util.Arrays.fill(active.pairKey,(byte)0);
         }finally{connection=null;c.disconnect();}
     }
     private void stopNow(){if(active!=null)active.stop();stopSelf();}

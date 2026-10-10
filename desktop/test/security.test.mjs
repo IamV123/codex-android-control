@@ -5,19 +5,14 @@ import http from 'node:http';
 import {Broker} from '../src/broker.mjs';
 import {credentials,seal,unseal} from '../src/protocol.mjs';
 import {validateTool} from '../src/tools.mjs';
+import {newPhone} from './phone.mjs';
 
 async function fixture(t,options={}) {
   const broker=await new Broker({pollMs:5,...options}).start({adminPort:0,phonePort:0});
   t.after(()=>broker.close());
   const pair=JSON.parse(Buffer.from(new URL(broker.createSession('https://example.test')).searchParams.get('data'),'base64url'));
-  const c=credentials(Buffer.from(pair.key,'base64url'),pair.session);let seq=0,rx=0;
-  async function poll(data={event:'poll',phone:{apps:[],remainingSeconds:600}},frame) {
-    const r=await fetch(`http://127.0.0.1:${broker.phonePort}/phone/v1/exchange`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+c.token},body:JSON.stringify(frame||seal(c.key,pair.session,'phone',++seq,data))});
-    const body=await r.json();
-    if(r.ok){const clear=unseal(c.key,pair.session,'desktop',rx,body);rx=body.seq;return {status:r.status,data:clear,frame:body};}
-    return {status:r.status,data:body};
-  }
-  return {broker,pair,c,poll};
+  const phone=newPhone(broker,pair);assert.equal((await phone.connect()).status,200);
+  return {broker,pair,c:phone.c,poll:phone.poll,phone};
 }
 test('AES-GCM detects tampering, wrong direction/session and replay',()=>{
   const master=randomBytes(32),id='0123456789abcdef0123456789abcdef',c=credentials(master,id);
@@ -59,30 +54,57 @@ test('encrypted command and result round trip without default app grants',async 
 });
 test('replayed phone frame and malformed ciphertext are rejected',async t=>{
   const {pair,c,poll}=await fixture(t);
-  const frame=seal(c.key,pair.session,'phone',1,{event:'poll'});
+  const frame=seal(c.key,c.id,'phone',1,{event:'poll'});
   assert.equal((await poll(null,frame)).status,200);
   assert.equal((await poll(null,frame)).status,400);
   assert.equal((await poll(null,{...frame,seq:2})).status,400);
 });
 
-test('restarting sequence with a used pair is diagnosed; copy creates a fresh usable pair',async t=>{
+test('used QR, page reload and adding Douyin authorize a new connection without counter reuse',async t=>{
   const {broker,pair,c,poll}=await fixture(t);
   await poll();
-  const restarted=seal(c.key,pair.session,'phone',1,{event:'poll'});
-  const rejected=await poll(null,restarted);
-  assert.equal(rejected.status,400);assert.equal(rejected.data.error,'pairing_reused');
-  assert.equal(broker.status().connectionIssue,'pairing_reused');
+  const original=broker.pairing();
+  const page=await fetch(`http://127.0.0.1:${broker.adminPort}/`);assert.equal(page.status,200);
+  assert.equal(broker.pairing(),original);
   const response=await fetch(`http://127.0.0.1:${broker.adminPort}/api/copy-pair`,{method:'POST',headers:{'Content-Type':'application/json','X-Admin-Key':broker.adminKey},body:'{}'});
   assert.equal(response.status,200);
   const prepared=await response.json();
   assert.match(prepared.qr,/^data:image\/png/);
-  const fresh=JSON.parse(Buffer.from(new URL(prepared.pairing).searchParams.get('data'),'base64url'));
-  assert.notEqual(fresh.session,pair.session);assert.equal(broker.status().connectionIssue,null);
+  assert.equal(prepared.pairing,original);
+  const fresh=newPhone(broker,pair,['com.dianping.v1','com.ss.android.ugc.aweme']);
+  assert.notEqual(fresh.c.id,c.id);assert.notDeepEqual(fresh.c.key,c.key);
+  assert.equal((await fresh.connect()).status,200);
   assert.equal((await poll()).status,401);
-  const nc=credentials(Buffer.from(fresh.key,'base64url'),fresh.session);
-  const connected=await fetch(`http://127.0.0.1:${broker.phonePort}/phone/v1/exchange`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+nc.token},body:JSON.stringify(seal(nc.key,fresh.session,'phone',1,{event:'poll',phone:{apps:['com.dianping.v1'],remainingSeconds:600}}))});
-  assert.equal(connected.status,200);assert.equal(broker.status().connected,true);
-  assert.deepEqual(broker.status().phone.apps,['com.dianping.v1']);
+  assert.equal((await fresh.poll()).status,200);assert.equal(broker.status().connected,true);
+  assert.deepEqual(broker.status().phone.apps,['com.dianping.v1','com.ss.android.ugc.aweme']);
+  assert.equal(broker.status().connectionIssue,null);
+});
+
+test('handshake replay never resets counters or replaces the current connection',async t=>{
+  const {broker,pair,phone,poll}=await fixture(t);await poll();
+  assert.equal((await phone.connect()).status,409);
+  const fresh=newPhone(broker,pair,['com.ss.android.ugc.aweme']);assert.equal((await fresh.connect()).status,200);
+  assert.equal((await phone.connect()).status,409);
+  assert.equal((await fresh.poll()).status,200);
+  assert.deepEqual(broker.status().phone.apps,['com.ss.android.ugc.aweme']);
+});
+
+test('reconnection cannot discard a dispatched operation; its receipt is preserved',async t=>{
+  const {broker,pair,poll}=await fixture(t);await poll();
+  const pending=broker.command('phone_home',{}),issued=await poll();
+  const fresh=newPhone(broker,pair,['com.ss.android.ugc.aweme']);
+  assert.equal((await fresh.connect()).status,409);assert.equal(broker.status().pending,true);
+  assert.equal((await poll({event:'result',response:{id:issued.data.command.id,ok:true,data:{performed:true}}})).status,200);
+  assert.deepEqual(await pending,{performed:true});
+  assert.equal((await fresh.connect()).status,200);assert.equal((await fresh.poll()).status,200);
+});
+
+test('old long poll ends when a new locally authorized connection starts',async t=>{
+  const {broker,pair,poll}=await fixture(t,{pollMs:1000});
+  const waiting=poll();
+  await new Promise(r=>setTimeout(r,30));
+  const fresh=newPhone(broker,pair);assert.equal((await fresh.connect()).status,200);
+  assert.equal((await waiting).status,401);assert.equal((await fresh.poll()).status,200);
 });
 
 test('copying an unused current pair preserves it; preparing a pair cannot interrupt a command',async t=>{
@@ -124,7 +146,7 @@ test('pairing only permits a clean HTTPS origin',async t=>{
 });
 test('oversized authenticated body is rejected before JSON processing',async t=>{
   const {broker,c}=await fixture(t);
-  const r=await fetch(`http://127.0.0.1:${broker.phonePort}/phone/v1/exchange`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+c.token},body:'x'.repeat(360001)});
+  const r=await fetch(`http://127.0.0.1:${broker.phonePort}/phone/v2/exchange`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+c.token},body:'x'.repeat(360001)});
   assert.equal(r.status,400);
 });
 test('dashboard has no third-party resources and cannot be framed',async t=>{
