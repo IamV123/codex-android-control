@@ -142,6 +142,21 @@ test('phone refusal reaches caller unchanged',async t=>{
   const rejection=assert.rejects(pending,/app_not_authorized/);
   const {data}=await poll();await poll({event:'result',response:{id:data.command.id,ok:false,error:'app_not_authorized'}});await rejection;
 });
+test('a valid-looking old pairing frame is classified locally but never authorizes a phone',async t=>{
+  const b=await new Broker().start({adminPort:0,phonePort:0});t.after(()=>b.close());const raw=b.createSession('https://example.test');
+  const original=b.pairing(),oldId=b.session.id==='f'.repeat(32)?'e'.repeat(32):'f'.repeat(32);
+  const response=await fetch('http://127.0.0.1:'+b.phonePort+'/phone/v3/challenge',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer invalid-token'},body:JSON.stringify({session:oldId,seq:1})});
+  assert.equal(response.status,401);assert.equal(b.status().connectionIssue,'stale_pair_code');assert.equal(b.status().connected,false);assert.equal(b.status().phone,null);assert.equal(b.pairing(),original);assert.equal(raw,original);
+});
+test('a delayed invalid challenge cannot label a replacement pairing as stale',async t=>{
+  const b=await new Broker().start({adminPort:0,phonePort:0});t.after(()=>b.close());b.createSession('https://example.test');
+  const frame=JSON.stringify({session:'f'.repeat(32),seq:1});
+  const received=new Promise(resolve=>b.phoneServer.once('request',resolve));
+  let request;
+  const response=new Promise((resolve,reject)=>{request=http.request({hostname:'127.0.0.1',port:b.phonePort,path:'/phone/v3/challenge',method:'POST',headers:{'Content-Type':'application/json','Content-Length':Buffer.byteLength(frame),Authorization:'Bearer invalid-token'}},res=>{res.resume();res.on('end',()=>resolve(res.statusCode));});request.on('error',reject);});
+  request.write(frame.slice(0,1));await received;const replacement=b.createSession('https://example.test');request.end(frame.slice(1));
+  assert.equal(await response,401);assert.equal(b.status().connectionIssue,null);assert.equal(b.status().connected,false);assert.equal(b.status().phone,null);assert.equal(b.pairing(),replacement);
+});
 test('pairing only permits a clean HTTPS origin',async t=>{
   const {broker}=await fixture(t);
   for(const bad of ['http://example.test','https://u:p@example.test','https://example.test/path','https://example.test:8443','https://example.test/#x'])assert.throws(()=>broker.createSession(bad));

@@ -109,7 +109,15 @@ export class Broker {
     if(typeof phone.locked==='boolean')result.locked=phone.locked;return result;
   }
   async challenge(req,res){
-    const s=this.live();if(!s||this.persistenceFault||!equal(req.headers.authorization,'Bearer '+s.token))return json(res,401,{error:'pair_not_authorized'});
+    const s=this.live();if(!s||this.persistenceFault||!equal(req.headers.authorization,'Bearer '+s.token)){
+      // Classify stale-code attempts for the local dashboard without keeping
+      // credentials or accepting any unauthenticated phone data or grants.
+      if(s&&(!s.connection||performance.now()-s.connection.lastSeen>35000)&&req.headers['content-type']==='application/json'){
+        const frame=await body(req).catch(()=>null);
+        if(this.live()===s&&(!s.connection||performance.now()-s.connection.lastSeen>35000)&&typeof frame?.session==='string'&&/^[a-f0-9]{32}$/.test(frame.session))this.lastPhoneError=frame.session!==s.id?'stale_pair_code':'pair_not_authorized';
+      }
+      return json(res,401,{error:'pair_not_authorized'});
+    }
     if(req.headers['content-type']!=='application/json')return json(res,400,{error:'invalid_challenge_request'});
     const frame=await body(req),data=unseal(s.key,s.id,'phone-challenge',0,frame);
     if(this.live()!==s||frame.seq!==1||data.event!=='challenge'||data.protocol!==3||!/^([a-f0-9]{32})$/.test(data.client))return json(res,400,{error:'invalid_challenge_request'});

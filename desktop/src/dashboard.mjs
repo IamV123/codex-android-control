@@ -43,6 +43,7 @@ async function refreshDashboard(){
     const review=document.querySelector('#review');if(review){review.hidden=!s.recoveryRequired;review.dataset.operation=s.unconfirmedOperation?.id||'';}
     if(s.recoveryRequired){const actions={phone_click:'触摸点击',phone_swipe:'滑动',phone_scroll:'翻页',phone_type:'输入文字',phone_open_app:'打开应用',phone_home:'返回桌面',phone_back:'返回'};state.textContent+='\n电脑中断时的“'+(actions[s.unconfirmedOperation.tool]||'手机操作')+'”没有收到回执，未自动重发。先核对手机再解除阻塞。';}
     if(s.connectionIssue==='frame_replayed')state.textContent+='\n旧连接数据已被拒绝；新版手机重新确认开始会建立新连接。';
+    else if(s.connectionIssue==='stale_pair_code')state.textContent+='\n手机提交的是旧配对码。请清空手机配对框，再扫描当前二维码或粘贴上面的完整配对码，然后重新确认开始。';
     else if(s.connectionIssue)state.textContent+='\n连接请求验证失败，请复制新配对码；若再次失败，请让 Codex 检查连接。';
   }catch{state.textContent='无法读取电脑状态，请刷新页面。连接情况可由 Codex 查询。';}
 }
