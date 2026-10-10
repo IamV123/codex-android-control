@@ -51,5 +51,5 @@ final class Session {
         if (!unlocked(ctx)) { stop(); throw new SecurityException("phone_locked_session_revoked"); }
     }
     synchronized void stop() { stopped = true; Arrays.fill(key, (byte) 0); if (current == this) {current = null;if(!lastStatus.startsWith("连接失败"))lastStatus="会话已停止，请重新配对";} }
-    JSONObject status() throws Exception { return new JSONObject().put("apps", new org.json.JSONArray(grants)).put("version","0.1.4").put("remainingSeconds", Math.max(0, (expires-SystemClock.elapsedRealtime())/1000)); }
+    JSONObject status() throws Exception { return new JSONObject().put("apps", new org.json.JSONArray(grants)).put("version","0.1.5").put("remainingSeconds", Math.max(0, (expires-SystemClock.elapsedRealtime())/1000)); }
 }

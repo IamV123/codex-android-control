@@ -87,23 +87,19 @@ public final class ControlService extends AccessibilityService {
                     NodeRef ref=nodes.get(args.getString("node"));
                     if(ref==null || SystemClock.elapsedRealtime()-ref.at()>30000)throw new SecurityException("stale_node_read_again");
                     AccessibilityNodeInfo node=validate(ref,tool);
-                    if(tool.equals("phone_swipe")){
-                        swipe(node,args.getString("direction"),result);break;
+                    if(!tool.equals("phone_type")){
+                        String direction=tool.equals("phone_click")?null:args.getString("direction");
+                        if(tool.equals("phone_scroll"))direction=switch(direction){
+                            case "forward" -> "up";
+                            case "backward" -> "down";
+                            default -> throw new SecurityException("invalid_scroll");
+                        };
+                        touch(node,direction,result);break;
                     }
-                    boolean ok;
-                    if(tool.equals("phone_type")){
-                        String text=args.getString("text");
-                        if(!node.isEditable()||text.length()>2000)throw new SecurityException("invalid_text_target");
-                        Bundle b=new Bundle();b.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,text);
-                        ok=node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT,b);
-                    }else if(tool.equals("phone_click")){
-                        if(!node.isClickable())throw new SecurityException("node_not_clickable");
-                        ok=node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-                    }else{
-                        String direction=args.getString("direction");
-                        if(!node.isScrollable()||!Set.of("forward","backward").contains(direction))throw new SecurityException("invalid_scroll");
-                        ok=node.performAction(direction.equals("forward")?AccessibilityNodeInfo.ACTION_SCROLL_FORWARD:AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD);
-                    }
+                    String text=args.getString("text");
+                    if(!node.isEditable()||text.length()>2000)throw new SecurityException("invalid_text_target");
+                    Bundle b=new Bundle();b.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,text);
+                    boolean ok=node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT,b);
                     nodes.clear();result.complete(new JSONObject().put("performed",ok));break;
                 }
                 default:throw new SecurityException("tool_not_allowed");
@@ -111,38 +107,46 @@ public final class ControlService extends AccessibilityService {
         }catch(Exception e){nodes.clear();result.completeExceptionally(e);}});
         return result;
     }
-    private void swipe(AccessibilityNodeInfo node,String direction,CompletableFuture<JSONObject> result)throws Exception{
+    private void touch(AccessibilityNodeInfo node,String direction,CompletableFuture<JSONObject> result)throws Exception{
         AccessibilityNodeInfo foreground=root(str(node.getPackageName()));
         if(foreground.getWindowId()!=node.getWindowId())throw new SecurityException("window_changed_read_again");
         Rect area=new Rect(),windowArea=new Rect();
         node.getBoundsInScreen(area);foreground.getBoundsInScreen(windowArea);
-        if(!area.intersect(windowArea))throw new SecurityException("swipe_target_not_visible");
-        SwipePlan plan=SwipePlan.create(area.left,area.top,area.right,area.bottom,direction);
+        if(!area.intersect(windowArea))throw new SecurityException("touch_target_not_visible");
+        float startX,startY,endX,endY;
+        if(direction==null){
+            TapPlan plan=TapPlan.create(area.left,area.top,area.right,area.bottom);
+            startX=endX=plan.x();startY=endY=plan.y();
+        }else{
+            SwipePlan plan=SwipePlan.create(area.left,area.top,area.right,area.bottom,direction);
+            startX=plan.startX();startY=plan.startY();endX=plan.endX();endY=plan.endY();
+        }
         AccessibilityWindowInfo owner=foreground.getWindow();
         if(owner==null)throw new SecurityException("screen_not_available");
-        Rect pathArea=new Rect((int)Math.min(plan.startX(),plan.endX())-8,(int)Math.min(plan.startY(),plan.endY())-8,
-                (int)Math.max(plan.startX(),plan.endX())+9,(int)Math.max(plan.startY(),plan.endY())+9);
+        Rect pathArea=new Rect((int)Math.min(startX,endX)-8,(int)Math.min(startY,endY)-8,
+                (int)Math.max(startX,endX)+9,(int)Math.max(startY,endY)+9);
         for(AccessibilityWindowInfo window:getWindows()){
             if(window.getId()==owner.getId() || window.getDisplayId()!=owner.getDisplayId() || window.getLayer()<=owner.getLayer())continue;
             Rect other=new Rect();window.getBoundsInScreen(other);
-            if(Rect.intersects(pathArea,other))throw new SecurityException("swipe_path_obscured_read_again");
+            if(Rect.intersects(pathArea,other))throw new SecurityException("touch_path_obscured_read_again");
         }
-        Path path=new Path();path.moveTo(plan.startX(),plan.startY());path.lineTo(plan.endX(),plan.endY());
+        Path path=new Path();path.moveTo(startX,startY);
+        if(direction!=null)path.lineTo(endX,endY);
         GestureDescription gesture=new GestureDescription.Builder().setDisplayId(owner.getDisplayId())
-                .addStroke(new GestureDescription.StrokeDescription(path,0,320)).build();
+                .addStroke(new GestureDescription.StrokeDescription(path,0,direction==null?80:320)).build();
         nodes.clear();
         Runnable timeout=()->result.completeExceptionally(new IllegalStateException("gesture_completion_unknown_do_not_retry"));
         GestureResultCallback callback=new GestureResultCallback(){
             private void finish(boolean completed){
                 main.removeCallbacks(timeout);clearCache();
-                try{result.complete(new JSONObject().put("performed",completed).put("method","touch_gesture").put("direction",direction));}
+                try{result.complete(new JSONObject().put("performed",completed).put("method",direction==null?"touch_tap":"touch_gesture").put("direction",direction));}
                 catch(Exception e){result.completeExceptionally(e);}
             }
             @Override public void onCompleted(GestureDescription g){finish(true);}
             @Override public void onCancelled(GestureDescription g){finish(false);}
         };
         if(dispatchGesture(gesture,callback,main))main.postDelayed(timeout,3000);
-        else result.complete(new JSONObject().put("performed",false).put("method","touch_gesture").put("direction",direction));
+        else result.complete(new JSONObject().put("performed",false).put("method",direction==null?"touch_tap":"touch_gesture").put("direction",direction));
     }
     private AccessibilityNodeInfo validate(NodeRef ref,String tool){
         AccessibilityNodeInfo r=root(ref.identity().pkg());

@@ -34,7 +34,7 @@ public final class MainActivity extends Activity {
         LinearLayout page = new LinearLayout(this); page.setOrientation(LinearLayout.VERTICAL); page.setPadding(32,40,32,40);
         scroll.addView(page); setContentView(scroll);
         text(page,"Codex 安卓助手",28);
-        text(page,"Android 13+ · 测试版 0.1.4\n你勾选的应用可连续读取和操作，不再逐次确认。默认无应用授权。",16);
+        text(page,"Android 13+ · 测试版 0.1.5\n你勾选的应用可连续读取和操作，不再逐次确认。默认无应用授权。",16);
         state=text(page,"",16);
         button(page,"1. 开启通知",v->requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},7));
         button(page,"2. 开启无障碍服务",v->startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
