@@ -1,7 +1,14 @@
 ﻿$ErrorActionPreference = 'Stop'
-$nodePath = (Get-Command node -ErrorAction SilentlyContinue).Source
-if (-not $nodePath) { throw '未找到 Node.js。请先安装 Node.js 22 或更高版本（https://nodejs.org），然后重新双击 Connect-Codex.cmd。' }
 $desktopRoot = $PSScriptRoot
+$bundledNode = Join-Path $desktopRoot 'node\node.exe'
+$nodePath = $null
+if (Test-Path -LiteralPath $bundledNode) {
+    $nodePath = $bundledNode
+} else {
+    $pathNode = (Get-Command node -ErrorAction SilentlyContinue).Source
+    if ($pathNode -and [int]((& $pathNode --version).TrimStart('v').Split('.')[0]) -ge 22) { $nodePath = $pathNode }
+}
+if (-not $nodePath) { throw '请先双击 Start-Desktop.cmd（会自动准备 Node.js），再运行 Connect-Codex.cmd。' }
 if ($nodePath.Contains("'") -or $desktopRoot.Contains("'")) { throw 'Node.js 或本文件夹的路径含有单引号，无法自动写入配置。请把它们移到不含单引号的路径后重试。' }
 $configRoot = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path ([Environment]::GetFolderPath('UserProfile')) '.codex' }
 $configFile = Join-Path $configRoot 'config.toml'
