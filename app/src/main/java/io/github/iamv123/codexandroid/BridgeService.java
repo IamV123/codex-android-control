@@ -27,7 +27,7 @@ public final class BridgeService extends Service {
         NotificationManager nm=getSystemService(NotificationManager.class);nm.createNotificationChannel(new NotificationChannel("session","远程会话（可随时停止）",NotificationManager.IMPORTANCE_LOW));
         PendingIntent stop=PendingIntent.getService(this,1,new Intent(this,BridgeService.class).setAction("STOP"),PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
         PendingIntent open=PendingIntent.getActivity(this,0,new Intent(this,MainActivity.class),PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
-        nm.cancel(3);Session.lastStatus="正在连接电脑，请保持手机解锁";
+        nm.cancel(2);nm.cancel(3);Session.lastStatus="正在连接电脑，请保持手机解锁";
         sessionNote=new Notification.Builder(this,"session").setSmallIcon(R.drawable.ic_app).setContentTitle("Codex 手机正在连接").setContentText("仅限勾选应用 · 锁屏自动停止").setContentIntent(open).addAction(new Notification.Action.Builder(null,"立即停止",stop).build()).setOngoing(true).setOnlyAlertOnce(true).setVisibility(Notification.VISIBILITY_PUBLIC);
         try{startForeground(1,sessionNote.build());}catch(RuntimeException e){reportFailure(e);stopNow();return START_NOT_STICKY;}
         lastSuccess=SystemClock.elapsedRealtime();worker=new Thread(this::loop,"codex-phone-channel");worker.start();

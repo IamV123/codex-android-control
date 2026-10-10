@@ -8,7 +8,7 @@ import java.util.Locale;
 
 /** Shared by Android and the JVM network smoke test; never logs credentials. */
 final class PhoneHttp {
-    static final String USER_AGENT="CodexAndroidControl/0.1.2";
+    static final String USER_AGENT="CodexAndroidControl/0.1.3";
     static HttpsURLConnection open(String endpoint,String token,int length)throws IOException{
         HttpsURLConnection c=(HttpsURLConnection)new URL(endpoint+"/phone/v1/exchange").openConnection();
         c.setInstanceFollowRedirects(false);c.setConnectTimeout(10000);c.setReadTimeout(25000);

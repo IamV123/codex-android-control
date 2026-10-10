@@ -34,14 +34,14 @@ public final class MainActivity extends Activity {
         LinearLayout page = new LinearLayout(this); page.setOrientation(LinearLayout.VERTICAL); page.setPadding(32,40,32,40);
         scroll.addView(page); setContentView(scroll);
         text(page,"Codex 安卓助手",28);
-        text(page,"Android 13+ · 测试版 0.1.2\n你勾选的应用，Codex 才能读取和操作。默认无应用授权。",16);
+        text(page,"Android 13+ · 测试版 0.1.3\n你勾选的应用可连续读取和操作，不再逐次确认。默认无应用授权。",16);
         state=text(page,"",16);
         button(page,"1. 开启通知",v->requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},7));
         button(page,"2. 开启无障碍服务",v->startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
         text(page,"3. 粘贴电脑网页上的配对码（或用系统相机扫码打开）",16);
         pairing=new EditText(this); pairing.setHint("codexandroid://pair?data=…"); pairing.setSingleLine(false); pairing.setSaveEnabled(false); pairing.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS); page.addView(pairing);
         text(page,"4. 勾选本次允许使用的应用",20);
-        text(page,"未勾选：仅返回、回桌面和连接状态。系统权限设置、安装器和本应用不开放控制。更改勾选时先停止旧会话，再重新授权。",14);
+        text(page,"未勾选的应用不能读取或操作，返回和回桌面也会拒绝。系统权限设置、安装器和本应用不列入可选应用。更改勾选时先停止旧会话，再重新授权。",14);
         Intent launcher=new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
         List<ResolveInfo> list=getPackageManager().queryIntentActivities(launcher,PackageManager.ResolveInfoFlags.of(0));
         list.sort(Comparator.comparing(r->r.loadLabel(getPackageManager()).toString()));
@@ -55,7 +55,7 @@ public final class MainActivity extends Activity {
         }
         text(page,"授权时长",16);
         duration=new Spinner(this); duration.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,new String[]{"10 分钟","30 分钟"}));page.addView(duration);
-        text(page,"屏幕文字会发送到你的电脑及当前使用的 AI 服务。密码节点会跳过，但无法识别全部隐私信息。点击、输入、滚动每次均需手机确认。不要用本测试版执行支付或敏感业务。",15);
+        text(page,"开启后，Codex 可在已勾选应用内直接点击、输入和滚动，不按页面关键词拦截。屏幕文字会发送到你的电脑及当前使用的 AI 服务；系统标记的密码或敏感文字不回传。锁屏或点通知中的停止即可撤销。",15);
         button(page,"5. 本机确认并开始",v->prepare());
         button(page,"立即停止并撤销",v->{if(Session.current!=null)Session.current.stop();stopService(new Intent(this,BridgeService.class));refresh();});
         readIntent(getIntent());
@@ -71,7 +71,7 @@ public final class MainActivity extends Activity {
     private void prepare(){
         if(Session.current!=null){fail("请先停止当前会话。");return;}
         if(ControlService.instance==null){fail("请先在无障碍设置中启用 Codex 安卓助手。若系统提示受限设置，请按设备官方说明手动允许；本程序不能代为开启。");return;}
-        if(!getSystemService(NotificationManager.class).areNotificationsEnabled()){fail("请先允许通知，以便随时停止和确认操作。");return;}
+        if(!getSystemService(NotificationManager.class).areNotificationsEnabled()){fail("请先允许通知，以便查看连接和随时停止。");return;}
         KeyguardManager km=getSystemService(KeyguardManager.class);
         if(!km.isDeviceSecure()){fail("请先为手机设置锁屏密码，授权需要本机身份确认。");return;}
         try{

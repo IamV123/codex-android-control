@@ -10,7 +10,6 @@
             <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
             <intent-filter><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.DEFAULT" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="codexandroid" android:host="pair" /></intent-filter>
         </activity>
-        <activity android:name=".ApprovalActivity" android:exported="false" android:excludeFromRecents="true" android:taskAffinity="io.github.iamv123.codexandroid.approval" />
         <service android:name=".BridgeService" android:exported="false" android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-started, time-limited remote accessibility assistance, visible notification, outbound encrypted connection only" />
         </service>

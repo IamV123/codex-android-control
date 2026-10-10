@@ -12,7 +12,6 @@ public final class PolicyCryptoTest {
         Set<String> empty=Set.of(),selected=Set.of("com.tencent.mm","com.xingin.xhs","com.example.other","com.android.settings");
         for(String p: new String[]{"com.tencent.mm","com.xingin.xhs","com.example.other"}) {if(Policy.allowed(empty,p))throw new AssertionError("default grant");checks++;if(!Policy.allowed(selected,p))throw new AssertionError("selected app unavailable");checks++;}
         for(String p:new String[]{Policy.OWN,"com.android.settings","com.android.systemui","com.google.android.permissioncontroller","com.android.packageinstaller"}){if(Policy.allowed(Set.of(p),p))throw new AssertionError("protected surface");checks++;}
-        for(String text:new String[]{"转账","验证码","Password","wallet","付款"}){if(!Policy.sensitive(text))throw new AssertionError("sensitive pattern");checks++;}
         for(int kind=0;kind<3;kind++){try{Policy.check(selected,kind==0?"com.unselected.app":"com.tencent.mm",kind!=1,kind!=2);throw new AssertionError("gate bypass");}catch(SecurityException expected){checks++;}}
         byte[] master=new byte[32];for(int i=0;i<32;i++)master[i]=(byte)i;
         String id="0123456789abcdef0123456789abcdef";byte[] key=Crypto.derive(master,id,"encryption");
