@@ -1,5 +1,6 @@
 ﻿param([switch]$NoLaunch,[switch]$NoBrowser)
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 $desktopRoot = $PSScriptRoot
 $bundledNode = Join-Path $desktopRoot 'node\node.exe'
 $nodePath = $null

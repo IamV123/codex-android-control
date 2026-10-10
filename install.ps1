@@ -1,4 +1,5 @@
 ﻿$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 $Version = '0.1.9'
 $base = if ($env:CAC_INSTALL_BASE) { $env:CAC_INSTALL_BASE } else { "https://github.com/IamV123/codex-android-control/releases/download/v$Version" }
@@ -35,16 +36,19 @@ try {
     if ((Get-FileHash -LiteralPath $zipFile -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) { Stop-Install '下载的压缩包校验不符，已取消安装。请重新运行同一条命令。' }
 
     $stoppedDesks = @{}
-    Get-CimInstance Win32_Process | Where-Object { $_.CommandLine } | ForEach-Object {
+    Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.ProcessId -ne $PID } | ForEach-Object {
         $cl = $_.CommandLine; $desk = $null
-        if ($cl -match '^(.*)[\\/]src[\\/](?:supervise|launch)\.mjs') { $desk = $Matches[1] }
-        elseif ($cl -match '--url +http://127\.0\.0\.1:18766' -and $cl -match '^(.*)[\\/]bin[\\/]cloudflared\.exe') { $desk = $Matches[1] }
-        if ($desk) {
-            $idx = $desk.LastIndexOf('"')
-            if ($idx -ge 0) { $desk = $desk.Substring($idx + 1) }
-            $desk = $desk.Trim().Trim('"', "'")
-            if (Test-Path -LiteralPath (Join-Path $desk 'Start-Desktop.ps1')) {
-                if (-not $stoppedDesks.ContainsKey($desk)) { $stoppedDesks[$desk] = @() }
+        if ($cl -match '.*([A-Za-z]:[\\/][^"]*?)[\\/]src[\\/](?:supervise|launch)\.mjs') { $desk = $Matches[1].Trim() }
+        elseif ($cl -match '--url +http://127\.0\.0\.1:18766' -and $cl -match '.*([A-Za-z]:[\\/][^"]*?)[\\/]bin[\\/]cloudflared\.exe') { $desk = $Matches[1].Trim() }
+        if ($desk -and (Test-Path -LiteralPath (Join-Path $desk 'Start-Desktop.ps1'))) {
+            if (-not $stoppedDesks.ContainsKey($desk)) { $stoppedDesks[$desk] = @() }
+            $stoppedDesks[$desk] += $_.ProcessId
+        }
+    }
+    Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.ProcessId -ne $PID } | ForEach-Object {
+        foreach ($desk in $stoppedDesks.Keys) {
+            if (($_.Name -eq 'powershell.exe' -and $_.CommandLine -match [regex]::Escape($desk + '\Start-Desktop.ps1')) -or
+                ($_.Name -eq 'cmd.exe' -and $_.CommandLine -match [regex]::Escape($desk + '\Start-Desktop.cmd'))) {
                 $stoppedDesks[$desk] += $_.ProcessId
             }
         }
