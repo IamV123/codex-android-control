@@ -1,0 +1,33 @@
+name: build-and-check
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: desktop
+      - run: npm test
+        working-directory: desktop
+      - run: node tools/test-cross-crypto.mjs
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - run: bash gradlew :app:assembleRelease :app:lintRelease --console=plain
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-apk-and-lint
+          path: |
+            app/build/outputs/apk/release/*.apk
+            app/build/reports/lint-results-release.*
+          retention-days: 7

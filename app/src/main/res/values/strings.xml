@@ -1,0 +1,5 @@
+<resources>
+    <string name="accessibility_description">仅在你启动的限时会话中，读取和操作你在本机勾选的应用。点击、输入、滚动需手机确认。未勾选应用只能返回或回桌面。系统授权界面和本应用禁止远程操作。屏幕文字会发送给电脑及你使用的 AI 服务；不能保证自动识别全部隐私信息。随时通过通知停止。</string>
+    <string name="app_choice">%1$s\n%2$s</string>
+    <string name="approval_detail">%1$s\n\n确认后会返回原应用；画面变化则拒绝执行。请勿确认支付、验证码或与你意图不符的操作。</string>
+</resources>
