@@ -1,7 +1,7 @@
 ﻿$ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-$Version = '0.1.11'
+$Version = '0.1.12'
 $base = if ($env:CAC_INSTALL_BASE) { $env:CAC_INSTALL_BASE } else { "https://github.com/IamV123/codex-android-control/releases/download/v$Version" }
 $target = if ($env:CAC_INSTALL_TARGET) { $env:CAC_INSTALL_TARGET } else { Join-Path $env:USERPROFILE 'CodexAndroidControl' }
 $installStart = Get-Date
@@ -88,6 +88,7 @@ try {
     $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) '启动 Codex 手机助手.lnk'))
     $shortcut.TargetPath = Join-Path $desktopDir 'Start-Desktop.cmd'
     $shortcut.WorkingDirectory = $desktopDir
+    $shortcut.IconLocation = (Join-Path $desktopDir 'app.ico') + ',0'
     $shortcut.Save()
 
     Write-Output '正在启动电脑端（会打开一个黑色窗口，请不要关闭）…'
