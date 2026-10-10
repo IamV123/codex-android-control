@@ -2,7 +2,7 @@
 
 让 Codex 通过你自己的电脑协助操作 Android 手机。**在手机上勾选哪些应用，就允许操作哪些应用；默认一个都不授权。** 无需 root、ADB 或 VPN。
 
-当前版本为 **v0.1.9 实验测试版**，最低 Android 13。默认使用 Cloudflare 临时通道：电脑或电脑端程序重启后地址会变，需要在手机上重新扫码连接；实际操作需要手机解锁、两端联网。
+当前版本为 **v0.1.10 实验测试版**，最低 Android 13。默认使用 Cloudflare 临时通道：电脑或电脑端程序重启后地址会变，需要在手机上重新扫码连接；实际操作需要手机解锁、两端联网。
 
 ## 最简单的用法（3 步）
 
@@ -24,7 +24,9 @@
 
 > 用户让你“按本仓库配置”时，照下面做。不需要你操作手机。
 
-1. 在 PowerShell 中运行下面 4 行。需要联网，并且会写入用户目录（`%LOCALAPPDATA%\CodexAndroidControl` 和 `%USERPROFILE%\.codex\config.toml`）。如果沙盒拦截了网络或写入，请向用户申请权限。
+1. 在 PowerShell 中运行下面 4 行。需要联网，会写入 `%USERPROFILE%\CodexAndroidControl` 和 `%USERPROFILE%\.codex\config.toml`，还会在桌面创建快捷方式。
+   - 沙盒拦截网络（例如报“不知道这样的主机”）、重定向 TEMP，或不能写用户目录时：申请提升权限（escalated），然后**原样**重新运行这 4 行。
+   - 不要改安装目录，也不要换下载地址或镜像。
 
    ```powershell
    $f = Join-Path $env:TEMP 'cac-install.ps1'
@@ -33,7 +35,7 @@
    powershell -NoProfile -ExecutionPolicy Bypass -File $f
    ```
 
-2. 安装大约需要 3–6 分钟。看到“安装完成”后，把输出里“接下来”那几条**原样**告诉用户。
+2. 安装大约需要 2–6 分钟，脚本会一直等到手机通道真正就绪才结束。npm 输出的 `npm warn Unknown user config` 之类警告不影响安装，不用处理。看到“安装完成，电脑端已就绪”后，把输出里“接下来”那几条**原样**告诉用户。
 3. 安装会打开一个电脑端窗口，**不要关闭它**。也不要把配对码或二维码内容发到聊天里。
 4. 出错时，把错误原文告诉用户，并对照本页“遇到问题怎么办”。重新运行同样的命令是安全的，相当于升级或重装。
 5. 用户重新打开 Codex 后，手机工具名都以 `phone_` 开头，直接调用即可，不要写脚本。
@@ -169,9 +171,16 @@
 | Codex 说 `phone_authorization_expired` 或 `session_ended` | 授权到期或已停止。在手机上重新点“确认并开始”。 |
 | 电脑网页出现“已核对手机，解除未确认操作阻塞”按钮 | 上一个操作没有收到结果。先看手机上那个操作到底做了没有，再点这个按钮，然后让 Codex 继续。 |
 
+## v0.1.10 改动
+
+- 安装位置改为 `%USERPROFILE%\CodexAndroidControl`。v0.1.9 的默认位置 `%LOCALAPPDATA%` 在 Codex 桌面版（MSIX 应用）里运行时会被系统重定向到 Codex 自己的应用目录：在 Codex 里看着装好了，资源管理器里却找不到，桌面快捷方式也打不开。
+- 安装脚本要等手机通道真正就绪才显示“安装完成”。v0.1.9 在网页能打开时就提示完成，比实际就绪早了约 2 分钟。
+- 按固定端口识别并停止正在运行的旧版电脑端，不受上面的目录重定向影响。
+- v0.1.9 用 Codex 装过的：再让 Codex 运行一次同样的安装命令即可，会自动停止旧版，把配置和快捷方式都改到新位置。
+
 ## v0.1.9 改动
 
-- 新增一键安装：只要对 Codex 说“按 https://github.com/IamV123/codex-android-control 配置”，它会运行 `install.ps1`。安装脚本会下载并校验电脑端，安装到 `%LOCALAPPDATA%\CodexAndroidControl`，接入 Codex，在桌面创建“启动 Codex 手机助手”快捷方式，并启动电脑端。重复运行就是升级。
+- 新增一键安装：只要对 Codex 说“按 https://github.com/IamV123/codex-android-control 配置”，它会运行 `install.ps1`。安装脚本会下载并校验电脑端，安装到 `%LOCALAPPDATA%\CodexAndroidControl`（v0.1.10 已改到 `%USERPROFILE%\CodexAndroidControl`），接入 Codex，在桌面创建“启动 Codex 手机助手”快捷方式，并启动电脑端。重复运行就是升级。
 - 电脑没有 Node.js 时，自动下载固定版本的免安装 Node.js（先校验 SHA256，下载失败时改用国内镜像），不需要管理员权限。
 - 电脑配对网页新增“下载手机 App”二维码，指向最新版 APK；原来的二维码标为“配对二维码”。
 - 发布附件新增不带版本号的 `codex-android-control.apk`，所以下载链接 `releases/latest/download/codex-android-control.apk` 一直指向最新版。
