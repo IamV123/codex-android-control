@@ -11,7 +11,7 @@ if (Test-Path -LiteralPath $bundledNode) {
 }
 if (-not $nodePath) {
     $nodeManifest = Get-Content -Raw -LiteralPath (Join-Path $desktopRoot 'node-manifest.json') | ConvertFrom-Json
-    $partial = Join-Path $desktopRoot 'node.download'
+    $partial = Join-Path $desktopRoot 'node.zip'
     $ok = $false
     for ($attempt = 0; $attempt -lt 3 -and -not $ok; $attempt++) {
         $url = $nodeManifest.urls[$attempt % $nodeManifest.urls.Count]
