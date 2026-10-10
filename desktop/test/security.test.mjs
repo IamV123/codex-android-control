@@ -64,6 +64,40 @@ test('replayed phone frame and malformed ciphertext are rejected',async t=>{
   assert.equal((await poll(null,frame)).status,400);
   assert.equal((await poll(null,{...frame,seq:2})).status,400);
 });
+
+test('restarting sequence with a used pair is diagnosed; copy creates a fresh usable pair',async t=>{
+  const {broker,pair,c,poll}=await fixture(t);
+  await poll();
+  const restarted=seal(c.key,pair.session,'phone',1,{event:'poll'});
+  const rejected=await poll(null,restarted);
+  assert.equal(rejected.status,400);assert.equal(rejected.data.error,'pairing_reused');
+  assert.equal(broker.status().connectionIssue,'pairing_reused');
+  const response=await fetch(`http://127.0.0.1:${broker.adminPort}/api/copy-pair`,{method:'POST',headers:{'Content-Type':'application/json','X-Admin-Key':broker.adminKey},body:'{}'});
+  assert.equal(response.status,200);
+  const prepared=await response.json();
+  assert.match(prepared.qr,/^data:image\/png/);
+  const fresh=JSON.parse(Buffer.from(new URL(prepared.pairing).searchParams.get('data'),'base64url'));
+  assert.notEqual(fresh.session,pair.session);assert.equal(broker.status().connectionIssue,null);
+  assert.equal((await poll()).status,401);
+  const nc=credentials(Buffer.from(fresh.key,'base64url'),fresh.session);
+  const connected=await fetch(`http://127.0.0.1:${broker.phonePort}/phone/v1/exchange`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+nc.token},body:JSON.stringify(seal(nc.key,fresh.session,'phone',1,{event:'poll',phone:{apps:['com.dianping.v1'],remainingSeconds:600}}))});
+  assert.equal(connected.status,200);assert.equal(broker.status().connected,true);
+  assert.deepEqual(broker.status().phone.apps,['com.dianping.v1']);
+});
+
+test('copying an unused current pair preserves it; preparing a pair cannot interrupt a command',async t=>{
+  const {broker,poll}=await fixture(t);
+  const original=broker.pairing();
+  const call=path=>fetch(`http://127.0.0.1:${broker.adminPort}/api/${path}`,{method:'POST',headers:{'Content-Type':'application/json','X-Admin-Key':broker.adminKey},body:'{}'});
+  assert.equal((await (await call('copy-pair')).json()).pairing,original);
+  assert.equal((await (await call('copy-pair')).json()).pairing,original);
+  await poll();const pending=broker.command('phone_home',{});
+  const rejected=assert.rejects(pending,/revoked_by_user/);
+  for(const path of ['new','copy-pair']){
+    assert.equal((await call(path)).status,409);assert.equal(broker.pairing(),original);assert.equal(broker.status().pending,true);
+  }
+  broker.revoke();await rejected;
+});
 test('expired and manually revoked sessions cannot issue commands',async t=>{
   const {broker,poll}=await fixture(t,{sessionMs:80});
   await poll();await new Promise(r=>setTimeout(r,100));

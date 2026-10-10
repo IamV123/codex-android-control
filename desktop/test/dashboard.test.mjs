@@ -28,3 +28,25 @@ test('rendered dashboard script parses and refreshes despite window.status',asyn
   assert.equal(typeof refresh,'function');
   fail=true;await refresh();assert.match(nodes['#status'].textContent,/无法读取电脑状态/);
 });
+
+for(const manual of [false,true])test('copy retrieves the current pair instead of page-open data'+(manual?' even when clipboard is unavailable':''),async t=>{
+  const broker=await new Broker().start({adminPort:0,phonePort:0});t.after(()=>broker.close());
+  broker.createSession('https://example.com');const stale=broker.pairing();
+  const origin='http://127.0.0.1:'+broker.adminPort;
+  const html=await(await fetch(origin+'/')).text();
+  const source=html.match(/<script[^>]*>([\s\S]*?)<\/script>/)?.[1];assert.ok(source);
+  broker.createSession('https://example.com');const current=broker.pairing();
+  assert.notEqual(stale,current);
+  const nodes=Object.fromEntries(['status','pair','copy','new','stop','qr'].map(id=>['#'+id,{}]));let copied;
+  const context=vm.createContext({
+    document:{querySelector:selector=>nodes[selector]},
+    navigator:{clipboard:{writeText:async text=>{if(manual)throw new Error('not_available');copied=text;}}},
+    location:{reload:()=>{}},setInterval:()=>{},fetch:(path,options)=>fetch(origin+path,options)
+  });
+  new vm.Script(source).runInContext(context);await nextTurn();
+  assert.equal(nodes['#pair'].value,stale);
+  await nodes['#copy'].onclick();
+  assert.equal(nodes['#pair'].value,current);assert.match(nodes['#qr'].src,/^data:image\/png/);
+  if(manual){assert.equal(copied,undefined);assert.match(nodes['#status'].textContent,/新配对码已更新/);}
+  else{assert.equal(copied,current);assert.match(nodes['#status'].textContent,/已复制当前新配对码/);}
+});
