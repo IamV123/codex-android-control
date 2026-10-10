@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/logo.svg" width="96" alt="Codex 安卓助手">
+  <img src="docs/logo.png" width="112" alt="Codex 安卓助手">
 </p>
 
 <h1 align="center">Codex 安卓助手</h1>

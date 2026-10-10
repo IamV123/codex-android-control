@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Codex 安卓助手">
-  <rect width="128" height="128" rx="28" fill="#123c35"/>
-  <rect x="38" y="18" width="52" height="92" rx="11" fill="none" stroke="#ffffff" stroke-width="6"/>
-  <rect x="56" y="27" width="16" height="4" rx="2" fill="#ffffff"/>
-  <path d="M49 66 L60 77 L80 54" fill="none" stroke="#3ddc84" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="64" cy="98" r="4" fill="#ffffff"/>
-</svg>
