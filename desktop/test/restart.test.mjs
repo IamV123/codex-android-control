@@ -9,7 +9,7 @@ import {newPhone} from './phone.mjs';
 const codec={kind:'test-only',encode:b=>b,decode:b=>b};
 function fixture(t){const root=mkdtempSync(resolve(tmpdir(),'cac-restart-'));t.after(()=>{const target=resolve(root);if(dirname(target)!==resolve(tmpdir())||!basename(target).startsWith('cac-restart-'))throw new Error('unsafe_test_cleanup');rmSync(target,{recursive:true,force:true});});const file=resolve(root,'state.json');return {file,open:()=>new StateStore(file,{codec})};}
 function decode(raw){return JSON.parse(Buffer.from(new URL(raw).searchParams.get('data'),'base64url'));}
-async function broker(store){const b=await new Broker({store,pollMs:5}).start({adminPort:0,phonePort:0});b.restore('https://fixed.example.test');return b;}
+async function broker(store,options={}){const b=await new Broker({store,pollMs:5,...options}).start({adminPort:0,phonePort:0});b.restore('https://fixed.example.test');return b;}
 
 test('desktop restart restores the same QR and original deadline, with fresh transport and no grant expansion',async t=>{
   const f=fixture(t),first=await broker(f.open()),raw=first.pairing(),pair=decode(raw),p=newPhone(first,pair,['com.ss.android.ugc.aweme']);await p.connect();await p.poll();const expiry=first.session.expiresAt;
@@ -38,6 +38,20 @@ test('a completed phone receipt recovers an interrupted operation without execut
 test('live connection replacement can return a lost receipt but cannot drop an unknown write',async t=>{
   const f=fixture(t),b=await broker(f.open());t.after(()=>b.close());const pair=decode(b.pairing()),p=newPhone(b,pair);await p.connect();const pending=b.command('phone_home',{}),issued=(await p.poll()).data.command;
   const renewed=newPhone(b,pair);assert.equal((await renewed.connect({id:issued.id,ok:true,data:{performed:true}})).status,200);assert.deepEqual(await pending,{performed:true});assert.equal(b.status().pending,false);assert.equal((await renewed.poll()).data.command,null);
+});
+
+test('a dispatched write timeout retains authorization and a durable review block through restart',async t=>{
+  const f=fixture(t),b=await broker(f.open(),{commandMs:100}),raw=b.pairing(),pair=decode(raw),p=newPhone(b,pair);await p.connect();
+  const pending=b.command('phone_click',{node:'observed-target'}),rejected=assert.rejects(pending,/command_timeout_result_unknown/),issued=(await p.poll()).data.command;await rejected;
+  assert.equal(b.status().active,true);assert.equal(b.status().pending,false);assert.equal(b.status().recoveryRequired,true);assert.equal(b.pairing(),raw);assert.equal(f.open().value.pair.pending.id,issued.id);
+  const renewed=newPhone(b,pair);assert.equal((await renewed.connect()).status,200);assert.equal((await renewed.poll()).data.command,null);await assert.rejects(b.command('phone_back',{}),/previous_operation_requires_review/);await b.close();
+  const next=await broker(f.open());t.after(()=>next.close());assert.equal(next.pairing(),raw);assert.equal(next.status().unconfirmedOperation.id,issued.id);const fresh=newPhone(next,pair);assert.equal((await fresh.connect()).status,200);assert.equal((await fresh.poll()).data.command,null);
+});
+
+test('a late matching receipt resolves a dispatched timeout without replay or new pairing',async t=>{
+  const f=fixture(t),b=await broker(f.open(),{commandMs:100});t.after(()=>b.close());const raw=b.pairing(),pair=decode(raw),p=newPhone(b,pair);await p.connect();
+  const pending=b.command('phone_home',{}),rejected=assert.rejects(pending,/command_timeout_result_unknown/),issued=(await p.poll()).data.command;await rejected;
+  const renewed=newPhone(b,pair);assert.equal((await renewed.connect({id:issued.id,ok:true,data:{performed:true}})).status,200);assert.equal(b.status().recoveryRequired,false);assert.equal(b.pairing(),raw);assert.equal(f.open().value.pair.pending,null);assert.equal((await renewed.poll()).data.command,null);
 });
 test('private-state failure prevents dispatch; locking pauses without revoking the pairing',async t=>{
   const f=fixture(t),store=f.open(),b=await broker(store);t.after(()=>b.close());const p=newPhone(b,decode(b.pairing()));await p.connect();await p.poll({event:'poll',phone:{apps:[],remainingSeconds:600,locked:true}});await assert.rejects(b.command('phone_home',{}),/phone_locked/);assert.equal(b.status().active,true);

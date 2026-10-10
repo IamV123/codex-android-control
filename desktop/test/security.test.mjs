@@ -127,12 +127,14 @@ test('expired and manually revoked sessions cannot issue commands',async t=>{
   assert.equal((await poll()).status,401);
   broker.createSession('https://example.test');broker.revoke();assert.equal(broker.status().active,false);
 });
-test('only one command pending and timeout revokes instead of retrying unknown action',async t=>{
+test('only one command pending and an undelivered timeout preserves pairing without late dispatch',async t=>{
   const {broker,poll}=await fixture(t,{commandMs:80});
+  const original=broker.pairing(),expiresAt=broker.session.expiresAt;
   await poll();const pending=broker.command('phone_home',{});
-  const rejection=assert.rejects(pending,/command_timeout_session_revoked/);
+  const rejection=assert.rejects(pending,/command_not_dispatched_connection_interrupted/);
   await assert.rejects(broker.command('phone_back',{}),/another_command_pending/);
-  await rejection;assert.equal(broker.status().active,false);
+  await rejection;assert.equal(broker.status().active,true);assert.equal(broker.status().pending,false);assert.equal(broker.status().recoveryRequired,false);
+  assert.equal(broker.pairing(),original);assert.equal(broker.session.expiresAt,expiresAt);assert.equal((await poll()).data.command,null);
 });
 test('phone refusal reaches caller unchanged',async t=>{
   const {broker,poll}=await fixture(t);await poll();

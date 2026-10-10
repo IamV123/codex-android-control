@@ -84,10 +84,23 @@ export class Broker {
     return new Promise((resolve,reject)=>{
       const id=randomBytes(16).toString('hex');s.journal={id,tool:name,since:Date.now()};
       try{this.persist();}catch(e){s.journal=null;reject(new Error('private_state_write_failed_operation_not_dispatched'));return;}
-      const timer=setTimeout(()=>{try{this.revoke('command_timeout_session_revoked_check_phone_before_retry');}catch{this.persistenceFault=true;}},this.commandMs);
+      const timer=setTimeout(()=>this.commandTimeout(s,c,id),this.commandMs);
       c.pending={id,resolve:r=>{clearTimeout(timer);c.pending=null;resolve(r);},reject:e=>{clearTimeout(timer);c.pending=null;reject(e);}};
       c.queue.push({id,tool:name,args});c.wake?.();
     });
+  }
+  commandTimeout(s,c,id){
+    if(this.session!==s||c.pending?.id!==id)return;
+    const unsent=c.queue.some(command=>command.id===id),readOnly=s.journal?.tool==='phone_read_screen';
+    // A queued request has never been handed to the transport. Remove it so a
+    // delayed poll cannot execute it after the caller was told it timed out.
+    // A dispatched write remains in the durable journal until its receipt or
+    // local review arrives. Neither case revokes the remaining authorization.
+    c.queue=c.queue.filter(command=>command.id!==id);
+    s.recovered=unsent||readOnly?null:s.journal;s.journal=s.recovered;
+    try{this.persist();}catch{this.persistenceFault=true;}
+    const reason=unsent?'command_not_dispatched_connection_interrupted':readOnly?'screen_read_timeout_connection_preserved':'command_timeout_result_unknown_check_phone_before_retry';
+    c.pending.reject(new Error(reason));c.wake?.();
   }
   phoneStatus(phone){
     if(!phone||!Array.isArray(phone.apps)||phone.apps.length>500||phone.apps.some(p=>typeof p!=='string'||p.length>200))throw new Error('invalid_phone_status');
