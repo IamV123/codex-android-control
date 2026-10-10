@@ -25,7 +25,7 @@ document.querySelector('#copy').onclick=async()=>{
   catch{state.textContent='新配对码已更新，请选中上面的整段配对码手动复制。';}
 };
 document.querySelector('#new').onclick=async()=>{
-  try{const value=document.querySelector('#duration-value')?.value||'7',unit=document.querySelector('#duration-unit')?.value||'days';showPair(await api('new',{value,unit}));await refreshDashboard();}
+  try{const value=document.querySelector('#duration-value')?.value||'1',unit=document.querySelector('#duration-unit')?.value||'days';showPair(await api('new',{value,unit}));await refreshDashboard();}
   catch(error){state.textContent=error.message==='another_command_pending'?'手机操作仍在执行，完成后再重新配对。':error.message==='duration_must_be_between_one_minute_and_30_days'?'时长请输入整数，范围为1分钟至30天。':'重新配对未成功，请先查看未确认操作或刷新页面。';}
 };
 document.querySelector('#stop').onclick=async()=>{
@@ -36,7 +36,8 @@ async function refreshDashboard(){
   try{
     const s=await api('status');
     if(s.pairId!==displayedPairId)showPair(await api('pair'));
-    state.textContent=(s.active?'配对有效':'已撤销')+' · '+(s.connected?'手机已连接':'等待手机')+' · 剩余 '+s.remainingSeconds+' 秒\n'+(s.phone?.apps?.join('\n')||'尚未授权任何应用');
+    const r=s.remainingSeconds,duration=r>=86400?Math.floor(r/86400)+' 天 '+Math.floor(r%86400/3600)+' 小时':r>=3600?Math.floor(r/3600)+' 小时 '+Math.floor(r%3600/60)+' 分钟':r>=60?Math.floor(r/60)+' 分钟':'不足 1 分钟';
+    state.textContent=(s.active?'配对有效':'已撤销')+' · '+(s.connected?'手机已连接':'等待手机')+' · 剩余 '+duration+'\n'+(s.phone?.apps?.join('\n')||'尚未授权任何应用');
     if(s.phone?.locked)state.textContent+='\n手机已锁屏，暂停操作；本机解锁后恢复。';
     if(s.persistent)state.textContent+='\n配对已保存在本机，电脑端重启不会延长有效期。';
     if(s.persistenceFault)state.textContent+='\n本机保存失败，已阻止发送操作。请检查电脑端日志。';

@@ -27,13 +27,13 @@ import java.util.*;
 
 public final class MainActivity extends Activity {
     private EditText pairing,search,durationValue;
-    private TextView state,pageNumber,selectedCount;
+    private TextView state,selectedHeader,selectedPageNumber,unselectedPageNumber;
     private Spinner durationUnit;
-    private LinearLayout choices;
-    private Button previous,next,start,stop;
+    private LinearLayout selectedChoices,unselectedChoices,selectedNav,unselectedNav;
+    private Button selectedPrevious,selectedNext,unselectedPrevious,unselectedNext,start,stop;
     private final Set<String> selected=new HashSet<>();
     private final List<AppPage.Entry> allApps=new ArrayList<>();
-    private int pageIndex;
+    private int selectedPage,unselectedPage;
     private Session proposed;
     private SharedPreferences preferences;
     private static final int AUTHORIZE=42;
@@ -56,19 +56,24 @@ public final class MainActivity extends Activity {
         text(page,"选择允许使用的应用",20);
         text(page,"更改勾选会停止当前授权。搜索或换页会保留你的勾选，不会增加或撤销授权。",14);
         search=new EditText(this);search.setHint("搜索应用名称，例如：抖音");search.setSingleLine(true);search.setInputType(InputType.TYPE_CLASS_TEXT);page.addView(search);
-        selectedCount=text(page,"",14);choices=new LinearLayout(this);choices.setOrientation(LinearLayout.VERTICAL);page.addView(choices);
-        LinearLayout navigation=new LinearLayout(this);navigation.setOrientation(LinearLayout.HORIZONTAL);page.addView(navigation);
-        previous=button(navigation,"上一页",v->{pageIndex--;renderApps();});pageNumber=text(navigation,"",14);next=button(navigation,"下一页",v->{pageIndex++;renderApps();});
+        selectedHeader=text(page,"",16);
+        selectedChoices=new LinearLayout(this);selectedChoices.setOrientation(LinearLayout.VERTICAL);page.addView(selectedChoices);
+        selectedNav=new LinearLayout(this);selectedNav.setOrientation(LinearLayout.HORIZONTAL);page.addView(selectedNav);
+        selectedPrevious=button(selectedNav,"上一页",v->{selectedPage--;renderApps();});selectedPageNumber=text(selectedNav,"",14);selectedNext=button(selectedNav,"下一页",v->{selectedPage++;renderApps();});
+        text(page,"未选中的应用",16);
+        unselectedChoices=new LinearLayout(this);unselectedChoices.setOrientation(LinearLayout.VERTICAL);page.addView(unselectedChoices);
+        unselectedNav=new LinearLayout(this);unselectedNav.setOrientation(LinearLayout.HORIZONTAL);page.addView(unselectedNav);
+        unselectedPrevious=button(unselectedNav,"上一页",v->{unselectedPage--;renderApps();});unselectedPageNumber=text(unselectedNav,"",14);unselectedNext=button(unselectedNav,"下一页",v->{unselectedPage++;renderApps();});
         Intent launcher=new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
         Set<String> seen=new HashSet<>();List<ResolveInfo> list=getPackageManager().queryIntentActivities(launcher,PackageManager.ResolveInfoFlags.of(0));
         for(ResolveInfo r:list){String pkg=r.activityInfo.packageName;if(!Policy.protectedPackage(pkg)&&seen.add(pkg))allApps.add(new AppPage.Entry(r.loadLabel(getPackageManager()).toString(),pkg));}
         Collator collator=Collator.getInstance();allApps.sort((a,b)->collator.compare(a.label(),b.label()));
-        search.addTextChangedListener(new TextWatcher(){@Override public void beforeTextChanged(CharSequence s,int st,int count,int after){}@Override public void onTextChanged(CharSequence s,int st,int before,int count){pageIndex=0;renderApps();}@Override public void afterTextChanged(Editable e){}});renderApps();
+        search.addTextChangedListener(new TextWatcher(){@Override public void beforeTextChanged(CharSequence s,int st,int count,int after){}@Override public void onTextChanged(CharSequence s,int st,int before,int count){selectedPage=0;unselectedPage=0;renderApps();}@Override public void afterTextChanged(Editable e){}});renderApps();
         text(page,"本次授权时长（1分钟至30天）",19);
         LinearLayout timing=new LinearLayout(this);timing.setOrientation(LinearLayout.HORIZONTAL);page.addView(timing);
-        durationValue=new EditText(this);durationValue.setInputType(InputType.TYPE_CLASS_NUMBER);durationValue.setFilters(new InputFilter[]{new InputFilter.LengthFilter(6)});durationValue.setText(preferences.getString("duration_value","30"));durationValue.setHint("时长");timing.addView(durationValue,new LinearLayout.LayoutParams(0,-2,1));
-        durationUnit=new Spinner(this);durationUnit.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,new String[]{"分钟","小时","天"}));durationUnit.setSelection(Math.max(0,Math.min(2,preferences.getInt("duration_unit",0))));timing.addView(durationUnit,new LinearLayout.LayoutParams(0,-2,1));
-        text(page,"例如：输入7，选择“天”。授权不会因重连而延长，手机与电脑配对以先到期者为准。",14);
+        durationValue=new EditText(this);durationValue.setInputType(InputType.TYPE_CLASS_NUMBER);durationValue.setFilters(new InputFilter[]{new InputFilter.LengthFilter(6)});durationValue.setText("1");durationValue.setHint("时长");timing.addView(durationValue,new LinearLayout.LayoutParams(0,-2,1));
+        durationUnit=new Spinner(this);durationUnit.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,new String[]{"分钟","小时","天"}));durationUnit.setSelection(2);timing.addView(durationUnit,new LinearLayout.LayoutParams(0,-2,1));
+        text(page,"默认1天。例如：输入7并选择“天”，就是7天。授权不会因重连而延长，手机与电脑配对以先到期者为准。",14);
         text(page,"断网会等待重连；锁屏暂停操作，解锁后恢复。点停止、改勾选、停用无障碍或到期会撤销。程序不能解锁手机；手机重启或服务被系统结束后，需要本机重新授权。屏幕文字会发送到你的电脑及当前AI服务。",14);
         LinearLayout footer=new LinearLayout(this);footer.setOrientation(LinearLayout.VERTICAL);footer.setPadding(dp(16),dp(8),dp(16),dp(10));footer.setBackgroundColor(Color.WHITE);root.addView(footer,new LinearLayout.LayoutParams(-1,-2));
         state=text(footer,"",15);state.setPadding(0,0,0,dp(6));LinearLayout actions=new LinearLayout(this);actions.setOrientation(LinearLayout.HORIZONTAL);footer.addView(actions);
@@ -79,13 +84,28 @@ public final class MainActivity extends Activity {
     private TextView text(LinearLayout parent,String value,int size){TextView t=new TextView(this);t.setText(value);t.setTextSize(size);t.setTextColor(Color.rgb(18,60,53));t.setPadding(0,dp(8),0,dp(8));parent.addView(t);return t;}
     private Button button(LinearLayout parent,String label,View.OnClickListener action){Button b=new Button(this);b.setText(label);b.setMinHeight(dp(48));b.setFilterTouchesWhenObscured(true);b.setOnClickListener(action);parent.addView(b);return b;}
     private void renderApps(){
-        AppPage.Page result=AppPage.filter(allApps,search.getText().toString(),pageIndex);pageIndex=result.index();choices.removeAllViews();
-        for(AppPage.Entry app:result.entries()){
-            CheckBox box=new CheckBox(this);box.setText(getString(R.string.app_choice,app.label(),app.pkg()));box.setTextSize(15);box.setSaveEnabled(false);box.setFilterTouchesWhenObscured(true);box.setChecked(selected.contains(app.pkg()));
-            box.setOnCheckedChangeListener((b,checked)->{if(checked)selected.add(app.pkg());else selected.remove(app.pkg());selectedCount.setText(getString(R.string.selected_apps,selected.size()));if(Session.current!=null)stopLocal();});choices.addView(box);
-        }
-        if(result.matches()==0)text(choices,"没有找到该应用",15);
-        pageNumber.setText(getString(R.string.page_counter,pageIndex+1,result.pages()));previous.setEnabled(pageIndex>0);next.setEnabled(pageIndex+1<result.pages());selectedCount.setText(getString(R.string.app_matches,selected.size(),result.matches()));
+        String query=search.getText().toString();
+        AppPage.Page picked=AppPage.filter(allApps,query,selectedPage,e->selected.contains(e.pkg()));
+        AppPage.Page rest=AppPage.filter(allApps,query,unselectedPage,e->!selected.contains(e.pkg()));
+        selectedPage=picked.index();unselectedPage=rest.index();
+        selectedHeader.setText(getString(R.string.selected_header,selected.size()));
+        selectedChoices.removeAllViews();
+        if(picked.matches()==0)text(selectedChoices,"还没有选中的应用，在下面勾选",15);
+        for(AppPage.Entry app:picked.entries())selectedChoices.addView(appBox(app));
+        selectedNav.setVisibility(picked.pages()>1?View.VISIBLE:View.GONE);
+        selectedPageNumber.setText(getString(R.string.page_counter,selectedPage+1,picked.pages()));
+        selectedPrevious.setEnabled(selectedPage>0);selectedNext.setEnabled(selectedPage+1<picked.pages());
+        unselectedChoices.removeAllViews();
+        if(rest.matches()==0&&!query.trim().isEmpty())text(unselectedChoices,"没有找到该应用",15);
+        for(AppPage.Entry app:rest.entries())unselectedChoices.addView(appBox(app));
+        unselectedNav.setVisibility(rest.pages()>1?View.VISIBLE:View.GONE);
+        unselectedPageNumber.setText(getString(R.string.page_counter,unselectedPage+1,rest.pages()));
+        unselectedPrevious.setEnabled(unselectedPage>0);unselectedNext.setEnabled(unselectedPage+1<rest.pages());
+    }
+    private CheckBox appBox(AppPage.Entry app){
+        CheckBox box=new CheckBox(this);box.setText(getString(R.string.app_choice,app.label(),app.pkg()));box.setTextSize(15);box.setSaveEnabled(false);box.setFilterTouchesWhenObscured(true);box.setChecked(selected.contains(app.pkg()));
+        box.setOnCheckedChangeListener((b,checked)->{if(checked)selected.add(app.pkg());else selected.remove(app.pkg());renderApps();if(Session.current!=null)stopLocal();});
+        return box;
     }
     private void stopLocal(){if(Session.current!=null)Session.current.stop();stopService(new Intent(this,BridgeService.class));Session.lastStatus="已停止并撤销授权";refresh();Toast.makeText(this,"已停止并撤销授权",Toast.LENGTH_SHORT).show();}
     @Override public void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);readIntent(intent);}
@@ -112,7 +132,7 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onActivityResult(int request,int result,Intent data){
         super.onActivityResult(request,result,data);if(request==AUTHORIZE&&proposed!=null){
-            if(result==RESULT_OK){Session.current=proposed;proposed=null;preferences.edit().putStringSet("apps",new HashSet<>(selected)).putString("duration_value",durationValue.getText().toString()).putInt("duration_unit",durationUnit.getSelectedItemPosition()).apply();Session.lastStatus="正在启动连接";
+            if(result==RESULT_OK){Session.current=proposed;proposed=null;preferences.edit().putStringSet("apps",new HashSet<>(selected)).apply();Session.lastStatus="正在启动连接";
                 try{startForegroundService(new Intent(this,BridgeService.class));}catch(RuntimeException e){Session.lastStatus="连接失败：系统未允许启动连接服务";Session.current.stop();fail(Session.lastStatus);}refresh();
             }else{proposed.stop();proposed=null;}
         }

@@ -47,7 +47,7 @@ export class StateStore {
     return structuredClone(value);
   }
   initialize() {
-    if(!this.value)this.save({v:1,tunnelName:'cac-'+randomBytes(16).toString('hex'),lifetimeMs:7*86400000,pair:null,initialized:false,lastWrittenAt:this.now()});
+    if(!this.value)this.save({v:1,tunnelName:'cac-'+randomBytes(16).toString('hex'),lifetimeMs:86400000,pair:null,initialized:false,lastWrittenAt:this.now()});
     return this.value;
   }
   save(value) {

@@ -24,7 +24,7 @@ test('rendered dashboard script parses and refreshes despite window.status',asyn
   });
   script.runInContext(context);await nextTurn();
   assert.match(nodes['#pair'].value,/^codexandroid:\/\/pair\?/);
-  assert.match(nodes['#status'].textContent,/手机已连接.*123 秒\ncom\.example\.app/);
+  assert.match(nodes['#status'].textContent,/手机已连接.*剩余 2 分钟\ncom\.example\.app/);
   assert.equal(typeof refresh,'function');
   fail=true;await refresh();assert.match(nodes['#status'].textContent,/无法读取电脑状态/);
 });
