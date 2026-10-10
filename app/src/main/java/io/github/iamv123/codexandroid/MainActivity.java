@@ -48,7 +48,7 @@ public final class MainActivity extends Activity {
         root.setOnApplyWindowInsetsListener((view,insets)->{Insets bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout()),keyboard=insets.getInsets(WindowInsets.Type.ime());view.setPadding(bars.left,bars.top,bars.right,Math.max(bars.bottom,keyboard.bottom));return insets;});
         ScrollView scroll=new ScrollView(this);LinearLayout page=new LinearLayout(this);page.setOrientation(LinearLayout.VERTICAL);page.setPadding(dp(20),dp(20),dp(20),dp(16));scroll.addView(page);
         root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);root.requestApplyInsets();
-        text(page,"Codex 安卓助手",27);text(page,"Android 13+ · 测试版 0.1.8\n仅允许你勾选的应用。电脑重启或断网后，在有效授权内自动等待重连。",15);
+        text(page,"Codex 安卓助手",27);text(page,"Android 13+ · 测试版 0.1.8\n仅允许你勾选的应用。电脑端运行期间断网会自动等待重连；电脑或电脑端程序重启后地址会变，需要用新配对码重新连接。",15);
         button(page,"开启通知",v->requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},7));
         button(page,"开启无障碍服务",v->startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
         text(page,"电脑配对码",19);
@@ -105,7 +105,7 @@ public final class MainActivity extends Activity {
         try{
             if(selected.isEmpty()||selected.size()>500)throw new IllegalArgumentException("请勾选1至500个允许使用的应用");
             proposed=Session.create(pairing.getText().toString(),selected,Duration.minutes(durationValue.getText().toString(),durationUnit.getSelectedItemPosition()));
-            new AlertDialog.Builder(this).setTitle("确认连接你的电脑").setMessage("连接地址：\n"+proposed.endpoint+"\n\n授权应用数："+selected.size()+"\n有效时长："+Duration.remaining((proposed.expires-SystemClock.elapsedRealtime())/1000)+"\n\n电脑重启后在剩余授权内自动重连。请核对地址与电脑网页一致。")
+            new AlertDialog.Builder(this).setTitle("确认连接你的电脑").setMessage("连接地址：\n"+proposed.endpoint+"\n\n授权应用数："+selected.size()+"\n有效时长："+Duration.remaining((proposed.expires-SystemClock.elapsedRealtime())/1000)+"\n\n电脑或电脑端程序重启后地址会变，需用新配对码重新连接。请核对地址与电脑网页一致。")
                 .setNegativeButton("取消",(d,w)->{proposed.stop();proposed=null;})
                 .setPositiveButton("验证身份并开始",(d,w)->startActivityForResult(km.createConfirmDeviceCredentialIntent("开启Codex手机会话","确认你勾选的应用和授权时限"),AUTHORIZE)).show();
         }catch(Exception e){if(proposed!=null){proposed.stop();proposed=null;}fail(e.getMessage()==null?"配对码无效":e.getMessage());}
