@@ -4,6 +4,7 @@ import {randomBytes, timingSafeEqual} from 'node:crypto';
 import {performance} from 'node:perf_hooks';
 import {credentials, seal, unseal} from './protocol.mjs';
 import {validateTool} from './tools.mjs';
+import {Operator} from './actions.mjs';
 import {durationMs, MAX_DURATION_MS} from './state-store.mjs';
 
 const MAX_BODY=360000;
@@ -15,8 +16,8 @@ const listen=(s,port)=>new Promise((resolve,reject)=>{s.once('error',reject);s.l
 function origin(endpoint){const u=new URL(endpoint);if(u.protocol!=='https:'||u.username||u.password||u.port||u.pathname!=='/'||u.search||u.hash)throw new Error('https_origin_required');return u.origin;}
 
 export class Broker {
-  constructor({sessionMs=30*60*1000,commandMs=80000,pollMs=5000,store=null}={}){
-    this.store=store;this.sessionMs=store?store.initialize().lifetimeMs:sessionMs;this.commandMs=commandMs;this.pollMs=pollMs;
+  constructor({sessionMs=30*60*1000,commandMs=80000,pollMs=15000,store=null}={}){
+    this.store=store;this.sessionMs=store?store.initialize().lifetimeMs:sessionMs;this.commandMs=commandMs;this.pollMs=pollMs;this.operator=new Operator(this);
     this.adminKey=randomBytes(32).toString('base64url');this.healthId=randomBytes(16).toString('hex');this.session=null;this.endpoint='';this.lastPhoneError=null;this.persistenceFault=false;this.restored=false;this.ready=false;
     this.phoneServer=server(this.phone.bind(this));this.adminServer=server(this.admin.bind(this));
   }
@@ -189,14 +190,14 @@ export class Broker {
       const s=this.live();if(!s?.recovered||s.connection?.pending||data.confirm!=='checked_on_phone'||data.id!==s.recovered.id)return json(res,409,{error:'review_not_confirmed'});
       s.recovered=null;s.journal=null;this.persist();return json(res,200,{ok:true});
     }
-    if(req.url==='/api/tool'){try{return json(res,200,{ok:true,data:await this.command(data.name,data.args||{})});}catch(e){return json(res,200,{ok:false,error:e.message});}}
+    if(req.url==='/api/tool'){try{return json(res,200,{ok:true,data:await this.operator.run(data.name,data.args||{})});}catch(e){return json(res,200,{ok:false,error:e.message});}}
     json(res,404,{error:'not_found'});
   }
   async pairData(){const pairing=this.pairing(),QRCode=(await import('qrcode')).default;return {pairing,pairId:this.live()?.id||null,qr:pairing?await QRCode.toDataURL(pairing,{width:320,margin:2}):''};}
   async dashboard(res){
     const {pairing,qr,pairId}=await this.pairData(),nonce=randomBytes(16).toString('base64');
     res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':`default-src 'none'; img-src data:; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`,'Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'});
-    res.end(`<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Codex 安卓助手</title><style nonce="${nonce}">body{max-width:760px;margin:32px auto;padding:0 20px;font:17px/1.65 system-ui;background:#edf4f0;color:#123c35}main{background:white;padding:28px;border-radius:20px}h1{font-size:28px}button{padding:12px 18px;border:0;border-radius:10px;margin:6px;background:#123c35;color:white;cursor:pointer}textarea{width:100%;height:90px;font-size:13px}input,select{padding:10px;font:inherit}input{width:90px}pre{white-space:pre-wrap;background:#edf4f0;padding:16px}img{max-width:100%}.muted{color:#54675e;font-size:14px}.danger{background:#9b3131}</style><main><h1>Codex 安卓助手</h1><p>手机安装 APK 后，复制配对码或扫码；在手机勾选应用、自选授权时长并确认开始。</p><img id="qr" alt="仅供你自己的手机扫描的配对码" src="${qr}" ${qr?'':'hidden'}><textarea readonly id="pair"></textarea><p class="muted">电脑重启后恢复原配对，手机在有效授权内等待重连。临时关机不会撤销授权；要结束请点“立即撤销”。固定免费中继仍受服务可用性影响。配对码等同密码，不要分享。</p><button id="copy">复制配对码</button><p>新配对有效期：<input id="duration-value" type="number" min="1" value="7"><select id="duration-unit"><option value="days">天</option><option value="hours">小时</option><option value="minutes">分钟</option></select>（最长30天；实际操作按手机授权时长）</p><button id="new">重新配对并使用此时长</button><button id="stop" class="danger">立即撤销</button><pre id="status">正在读取状态</pre><button id="review" class="danger" hidden>已核对手机，解除未确认操作阻塞</button><p class="muted">更改手机应用勾选、到期、停止或停用无障碍会结束授权。锁屏期间暂停操作，解锁后恢复；程序不能解锁手机。手机服务被系统结束或手机重启，需要本机重新授权。</p></main><script nonce="${nonce}">${dashboardScript(this.adminKey,pairing,pairId)}</script></html>`);
+    res.end(`<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Codex 安卓助手</title><style nonce="${nonce}">body{max-width:760px;margin:32px auto;padding:0 20px;font:17px/1.65 system-ui;background:#edf4f0;color:#123c35}main{background:white;padding:28px;border-radius:20px}h1{font-size:28px}button{padding:12px 18px;border:0;border-radius:10px;margin:6px;background:#123c35;color:white;cursor:pointer}textarea{width:100%;height:90px;font-size:13px}input,select{padding:10px;font:inherit}input{width:90px}pre{white-space:pre-wrap;background:#edf4f0;padding:16px}img{max-width:100%}.muted{color:#54675e;font-size:14px}.danger{background:#9b3131}</style><main><h1>Codex 安卓助手</h1><p>手机安装 APK 后，复制配对码或扫码；在手机勾选应用、自选授权时长并确认开始。</p><img id="qr" alt="仅供你自己的手机扫描的配对码" src="${qr}" ${qr?'':'hidden'}><textarea readonly id="pair"></textarea><p class="muted">默认使用 Cloudflare 临时通道：电脑或电脑端程序重启后地址会变，需要在手机上用新配对码重新连接。临时关机不会撤销授权；要结束请点“立即撤销”。配对码等同密码，不要分享。</p><button id="copy">复制配对码</button><p>新配对有效期：<input id="duration-value" type="number" min="1" value="7"><select id="duration-unit"><option value="days">天</option><option value="hours">小时</option><option value="minutes">分钟</option></select>（最长30天；实际操作按手机授权时长）</p><button id="new">重新配对并使用此时长</button><button id="stop" class="danger">立即撤销</button><pre id="status">正在读取状态</pre><button id="review" class="danger" hidden>已核对手机，解除未确认操作阻塞</button><p class="muted">更改手机应用勾选、到期、停止或停用无障碍会结束授权。锁屏期间暂停操作，解锁后恢复；程序不能解锁手机。手机服务被系统结束或手机重启，需要本机重新授权。</p></main><script nonce="${nonce}">${dashboardScript(this.adminKey,pairing,pairId)}</script></html>`);
   }
   async close({revoke=false}={}){
     if(revoke)this.revoke('desktop_stopped');else{const s=this.session;this.session=null;if(s){this.endConnection(s.connection,'desktop_stopped_check_receipt_before_retry');s.master.fill(0);s.key.fill(0);}}

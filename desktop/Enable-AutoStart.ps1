@@ -14,4 +14,4 @@ if($existing -and $existing -cne $command){throw 'Another installation owns Code
 if(!(Test-Path -LiteralPath $runKey)){New-Item -Path $runKey -Force|Out-Null}
 New-ItemProperty -LiteralPath $runKey -Name $entryName -Value $command -PropertyType String -Force|Out-Null
 if((Get-ItemPropertyValue -LiteralPath $runKey -Name $entryName) -cne $command){throw 'Auto-start readback did not match.'}
-Write-Output 'Enabled: this Windows user starts the desktop after sign-in. Pairing and remaining authorization are preserved.'
+Write-Output 'Enabled: this Windows user starts the desktop after sign-in. The default Cloudflare temporary tunnel gets a new address on restart, so the phone must re-pair with the new code.'

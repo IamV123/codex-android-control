@@ -16,7 +16,7 @@ try {
     $userSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
     & icacls.exe $runtimePath /inheritance:r /grant:r "*${userSid}:(OI)(CI)F" '*S-1-5-18:(OI)(CI)F' | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Cannot restrict private runtime directory permissions.' }
-    if (-not $env:CAC_PUBLIC_ORIGIN -and $env:CAC_TUNNEL_PROVIDER -eq 'cloudflare') {
+    if (-not $env:CAC_PUBLIC_ORIGIN -and $env:CAC_TUNNEL_PROVIDER -ne 'localtunnel') {
     $manifest = Get-Content -Raw -LiteralPath (Join-Path $desktopRoot 'cloudflared-manifest.json') | ConvertFrom-Json
     $binPath = Join-Path $desktopRoot 'bin'
     New-Item -ItemType Directory -Force -Path $binPath | Out-Null

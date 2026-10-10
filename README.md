@@ -2,11 +2,16 @@
 
 让 Codex 通过你自己的电脑协助操作 Android 手机。**在手机上勾选哪些应用，就允许操作哪些应用；默认一个都不授权。** 无需 root、ADB 或 VPN。
 
-当前版本为 **v0.1.7 实验测试版**，最低 Android 13，按 Android 16 / API 36 编译。电脑重启后可恢复原配对，手机在剩余授权内等待重连；实际操作仍需要手机解锁和两端联网。
+当前版本为 **v0.1.8 实验测试版**，最低 Android 13，按 Android 16 / API 36 编译。默认使用 Cloudflare 临时通道：电脑或电脑端程序重启后地址会变，需要在手机上用新配对码重新连接；实际操作仍需要手机解锁和两端联网。
 
-[下载 APK 和电脑端包](https://github.com/IamV123/codex-android-control/releases/tag/v0.1.7-desktop.1)
+[下载 APK 和电脑端包](https://github.com/IamV123/codex-android-control/releases)
 
-电脑端修补版 `v0.1.7-desktop.1` 保持手机 APK v0.1.7 不变。手机已经安装 v0.1.7 时，只更新电脑端即可；此前已被旧超时逻辑撤销的配对需要重新本机确认一次。
+## v0.1.8 改动
+
+- 电脑端默认改用 Cloudflare Quick Tunnel 临时通道，不再依赖固定 LocalTunnel 名字；重启后地址变化，手机需用新配对码重新本机授权。设 `CAC_TUNNEL_PROVIDER=localtunnel` 保留原固定通道与重启恢复行为，`CAC_PUBLIC_ORIGIN` 仍支持自有固定 HTTPS 入口。
+- MCP 工具合并为10个复合操作：`phone_status`、`phone_read_screen`、`phone_open_app`、`phone_tap`、`phone_tap_text`、`phone_type`、`phone_swipe`、`phone_swipe_feed`、`phone_back`、`phone_home`。读屏改为精简节点行；点按、输入、滑动、返回完成后直接返回最新屏幕，不再每次单独读屏。旧名 `phone_click`、`phone_scroll` 仍被接受。`phone_tap_text` 可按可见文字点按，`phone_swipe_feed` 批量浏览短视频并核对每次内容确实变化。
+- 手机长轮询复用 HTTPS 连接，电脑端默认轮询间隔放宽到15秒；配对验证预算延长以容纳临时地址首次解析。
+- 本地55项 Node 回归通过；APK v0.1.8 沿用同一发布签名。
 
 ## v0.1.7 改动
 
@@ -73,7 +78,7 @@ v0.1.3 已在真机完成淘宝输入“卫生纸”、搜索并打开首个标�
 
 ### 手机
 
-1. 下载 `codex-android-control-v0.1.7.apk`，直接覆盖安装旧版，不必卸载。更新后检查本助手的无障碍服务仍已开启。
+1. 下载 `codex-android-control-v0.1.8.apk`，直接覆盖安装旧版，不必卸载。更新后检查本助手的无障碍服务仍已开启。
 2. 打开“Codex 安卓助手”，允许通知，并在 Android 设置内手动启用无障碍服务。若系统显示受限设置，请按设备官方说明处理。
 3. 刷新电脑配对页，复制整段配对码到手机 App。也可使用支持自定义链接的系统扫码功能。同一码在有效期内可再次本机确认开始；升级时需要新版电脑页的 v3 码。
 4. 搜索或换页勾选应用，输入时长并选择分钟、小时或天，点底部“确认并开始”，核对连接地址与有效时长，验证身份。
@@ -83,17 +88,17 @@ v0.1.3 已在真机完成淘宝输入“卫生纸”、搜索并打开首个标�
 ### Windows 电脑
 
 1. 安装 [Node.js](https://nodejs.org/) 22 或更高版本，以及已登录的 Codex。
-2. 解压 `codex-android-control-v0.1.7-desktop-hotfix1.zip` 到固定目录。
+2. 解压 `codex-android-control-v0.1.8-desktop.zip` 到固定目录。
 3. 双击 `Start-Desktop.cmd`。首次运行安装锁定版本的二维码依赖，连接就绪后打开本机配对网页。
 4. 首次运行 `Connect-Codex.ps1`，然后重开 Codex 聊天或应用，载入 `android_control` MCP。脚本不会覆盖已有同名配置。
 5. 如需电脑重启后自动恢复，双击 `Enable-AutoStart.cmd`，它只添加当前Windows用户的一个登录启动项；登录同一个Windows用户后运行，不设置自动登录，也不修改其他启动项。撤销自动启动使用 `Disable-AutoStart.cmd`。
 6. 手机连接后可以说：“打开我授权的快手”“在淘宝搜索卫生纸”。
 
-更新电脑端时先确认没有未完成操作并停止原进程，替换新版源文件；保留原Codex配置和 `.runtime` 私有目录。v0.1.6升级到v0.1.7需要新的v3码授权一次，此后正常电脑端重启复用原配对，不用再扫码。不要在已发出操作且尚无回执时强行更新。不要将配对码或二维码发到聊天或公开截图。
+更新电脑端时先确认没有未完成操作并停止原进程，替换新版源文件；保留原Codex配置和 `.runtime` 私有目录。不要在已发出操作且尚无回执时强行更新。不要将配对码或二维码发到聊天或公开截图。
 
-电脑与手机不必使用同一Wi-Fi。默认LocalTunnel为每台安装保留随机固定名字与已验证的中继分配，重启先接回原通道；原分配失效后只申请同名地址，不接受悄悄换名。该免费服务不保证名字可用性或保留权，[官方说明](https://github.com/localtunnel/localtunnel#options)也注明指定名字受可用性影响。手机到中继使用HTTPS，电脑到中继使用TCP，正文另用端到端加密。正式固定入口可设置 `CAC_PUBLIC_ORIGIN` 并只代理手机端口 `127.0.0.1:18766`；管理端口18765与后台防重复启动端口18764不可暴露。Cloudflare Quick Tunnel只可在 `CAC_TEMPORARY_TUNNEL=1`、`CAC_TUNNEL_PROVIDER=cloudflare` 测试模式使用，不能用于跨重启续接。
+电脑与手机不必使用同一Wi-Fi。默认使用 Cloudflare Quick Tunnel 临时通道：每次启动获得随机 HTTPS 地址，电脑或电脑端程序重启后地址改变，手机需用新配对码重新连接。设 `CAC_TUNNEL_PROVIDER=localtunnel` 回到固定名字通道：每台安装保留随机固定名字与已验证的中继分配，重启先接回原通道，原分配失效后只申请同名地址；该免费服务不保证名字可用性或保留权。手机到通道使用HTTPS，电脑到通道使用TCP，正文另用端到端加密。正式固定入口可设置 `CAC_PUBLIC_ORIGIN` 并只代理手机端口 `127.0.0.1:18766`；管理端口18765与后台防重复启动端口18764不可暴露。
 
-电脑端暂时关闭、关机或断网会暂停连接，原授权继续计时；要撤销请用手机停止或电脑网页“立即撤销”。电脑恢复后手机会自动重连，不会重新执行中断时结果未知的操作。手机返回了该操作的完成回执时可以恢复；缺少回执会显示阻塞，需核对实际手机结果后在电脑页解除。移除 MCP 使用 `codex mcp remove android_control`，不影响其他 MCP。
+电脑端暂时关闭、关机或断网会暂停连接，原授权继续计时；要撤销请用手机停止或电脑网页“立即撤销”。进程仍在运行时网络恢复，手机会自动重连，不会重新执行中断时结果未知的操作。电脑端重启后临时通道地址已变，需刷新配对页并在手机上用新配对码重新本机授权。移除 MCP 使用 `codex mcp remove android_control`，不影响其他 MCP。
 
 ## 数据与权限
 

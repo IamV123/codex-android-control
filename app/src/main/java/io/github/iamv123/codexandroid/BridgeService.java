@@ -77,8 +77,12 @@ public final class BridgeService extends Service {
     private JSONObject request(String path,String token,Crypto.Envelope enc,String id,long seq)throws Exception{
         byte[] bytes=new JSONObject().put("session",id).put("seq",seq).put("nonce",enc.nonce).put("data",enc.data).toString().getBytes(StandardCharsets.UTF_8);
         HttpsURLConnection c=PhoneHttp.open(active.endpoint,path,token,bytes.length);connection=c;
+        // Keep-alive: PhoneHttp.read fully consumes the stream, so a successful
+        // exchange returns the pooled connection for the next long-poll. Only a
+        // failed request discards it.
         try{try(OutputStream out=c.getOutputStream()){out.write(bytes);}return new JSONObject(new String(PhoneHttp.read(c),StandardCharsets.UTF_8));}
-        finally{connection=null;c.disconnect();}
+        catch(Exception e){c.disconnect();throw e;}
+        finally{connection=null;}
     }
     private JSONObject exchange(JSONObject payload)throws Exception{
         ConnectionKeys keys=active.connection;long seq=++active.tx;

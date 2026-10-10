@@ -22,6 +22,6 @@ if ($LASTEXITCODE -ne 0) { throw 'Codex MCP registration failed.' }
 $updated = Get-Content -Raw -LiteralPath $configFile
 $marker = '[mcp_servers.android_control]'
 if ([regex]::Matches($updated,[regex]::Escape($marker)).Count -ne 1) { throw 'MCP registered, but timeout configuration needs inspection.' }
-$updated = $updated.Replace($marker, $marker + "`ntool_timeout_sec = 90")
+$updated = $updated.Replace($marker, $marker + "`ntool_timeout_sec = 300")
 [IO.File]::WriteAllText($configFile,$updated,[Text.UTF8Encoding]::new($false))
 Write-Host 'Codex MCP registered. Reopen the Codex chat/app to load it. Start-Desktop.cmd opens pairing.'
