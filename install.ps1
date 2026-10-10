@@ -46,14 +46,14 @@ try {
         }
     }
     Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.ProcessId -ne $PID } | ForEach-Object {
-        foreach ($desk in $stoppedDesks.Keys) {
+        foreach ($desk in @($stoppedDesks.Keys)) {
             if (($_.Name -eq 'powershell.exe' -and $_.CommandLine -match [regex]::Escape($desk + '\Start-Desktop.ps1')) -or
                 ($_.Name -eq 'cmd.exe' -and $_.CommandLine -match [regex]::Escape($desk + '\Start-Desktop.cmd'))) {
                 $stoppedDesks[$desk] += $_.ProcessId
             }
         }
     }
-    foreach ($desk in $stoppedDesks.Keys) {
+    foreach ($desk in @($stoppedDesks.Keys)) {
         Write-Output "正在停止旧版电脑端：$desk"
         foreach ($procId in $stoppedDesks[$desk]) { Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue }
     }
