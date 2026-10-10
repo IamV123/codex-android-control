@@ -34,6 +34,9 @@ test('no arbitrary tools, extra arguments or oversized input',()=>{
   assert.throws(()=>validateTool('phone_home',{package:'com.android.settings'}));
   assert.throws(()=>validateTool('phone_type',{node:'x',text:'x'.repeat(2001)}));
   assert.throws(()=>validateTool('phone_scroll',{node:'x',direction:'left'}));
+  for(const direction of ['up','down','left','right'])assert.doesNotThrow(()=>validateTool('phone_swipe',{node:'x',direction}));
+  assert.throws(()=>validateTool('phone_swipe',{node:'x',direction:'forward'}));
+  assert.throws(()=>validateTool('phone_swipe',{node:'x',direction:'up',x:10,y:20}));
   assert.doesNotThrow(()=>validateTool('phone_back',{}));
 });
 test('phone channel cannot access admin routes; admin rejects foreign origin/host',async t=>{

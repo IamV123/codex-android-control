@@ -19,6 +19,10 @@ public final class NodeIdentityTest {
         check(!button.matches(button,"phone_type"),"button cannot become input");
         check(!button.matches(button,"phone_scroll"),"button cannot become scroll target");
         check(!button.matches(button,"unknown"),"unknown action rejected");
+        check(pager.matches(new NodeIdentity("selected.app","feed","ViewPager","new video","new description",false,true),"phone_swipe"),"swipe permits dynamic feed text");
+        check(button.matches(button,"phone_swipe"),"swipe region need not expose native scrolling");
+        check(!pager.matches(new NodeIdentity("other.app","feed","ViewPager","first video","first description",false,true),"phone_swipe"),"swipe cannot cross packages");
+        check(!pager.matches(new NodeIdentity("selected.app","another","ViewPager","first video","first description",false,true),"phone_swipe"),"swipe cannot use a replaced target");
         System.out.println("node_identity_checks="+checks);
     }
 }

@@ -8,6 +8,7 @@ public record NodeIdentity(String pkg, String viewId, String className, String t
                 || !className.equals(current.className) || editable != current.editable
                 || scrollable != current.scrollable) return false;
         if (action.equals("phone_scroll")) return scrollable;
+        if (action.equals("phone_swipe")) return true;
         if (action.equals("phone_type")) return editable;
         return action.equals("phone_click") && text.equals(current.text)
                 && description.equals(current.description);

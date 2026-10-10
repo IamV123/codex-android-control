@@ -19,7 +19,7 @@ test('MCP initialize, tool enumeration, status and rejected offline action',asyn
   function rpc(method,params={}) {const id=++nextId;return new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('MCP timeout')),5000);waiters.set(id,r=>{clearTimeout(timer);resolve(r);});child.stdin.write(JSON.stringify({jsonrpc:'2.0',id,method,params})+'\n');});}
   const initialized=await rpc('initialize',{protocolVersion:'2025-06-18',capabilities:{},clientInfo:{name:'test',version:'1'}});
   assert.equal(initialized.result.protocolVersion,'2025-06-18');
-  const list=await rpc('tools/list');assert.equal(list.result.tools.length,8);assert.equal(list.result.tools.some(t=>t.name.includes('grant')),false);
+  const list=await rpc('tools/list');assert.equal(list.result.tools.length,9);assert.equal(list.result.tools.some(t=>t.name==='phone_swipe'),true);assert.equal(list.result.tools.some(t=>t.name.includes('grant')),false);
   const status=await rpc('tools/call',{name:'phone_status',arguments:{}});assert.equal(JSON.parse(status.result.content[0].text).active,false);
   const action=await rpc('tools/call',{name:'phone_home',arguments:{}});assert.equal(action.result.isError,true);assert.equal(action.result.content[0].text,'phone_not_connected');
   assert.equal(stderr,'');

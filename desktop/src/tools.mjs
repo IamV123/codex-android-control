@@ -10,6 +10,7 @@ export const TOOLS = [
   {name:'phone_click',description:'Click a node from the latest read of a phone-authorized app. No per-action confirmation. No coordinates. Never use to send messages without explicit user instructions.',inputSchema:schema({node:str},['node'])},
   {name:'phone_type',description:'Replace an editable node text in a phone-authorized app. Requires explicit user intent; no per-action confirmation.',inputSchema:schema({node:str,text:{type:'string',maxLength:2000}},['node','text'])},
   {name:'phone_scroll',description:'Scroll a phone-authorized app node. No per-action confirmation.',inputSchema:schema({node:str,direction:{type:'string',enum:['forward','backward']}},['node','direction'])},
+  {name:'phone_swipe',description:'Move one finger up/down/left/right within a visible node of a phone-authorized app, using an Android touch gesture (320 ms). Read the screen first to select the area. Use up for the next short video. Completion only confirms the gesture; read again to verify the UI changed. Cancellation may have moved the UI partially. Never blindly repeat an unknown result. No per-action confirmation or caller-supplied coordinates.',inputSchema:schema({node:str,direction:{type:'string',enum:['up','down','left','right']}},['node','direction'])},
 ];
 export function validateTool(name,args) {
   const tool = TOOLS.find(t => t.name === name);
