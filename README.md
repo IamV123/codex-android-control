@@ -2,11 +2,11 @@
 
 让 Codex 通过你自己的电脑协助操作 Android 手机。**在手机上自己勾选应用，默认不授权任何应用。** 无需 root、ADB 或 VPN。
 
-**当前为 v0.1.0 实验测试版。最低 Android 13，按 Android 16 / API 36 编译。尚未完成真机验收。** 本项目不能保证绝对安全，也不适合无人值守或支付操作。
+**当前为电脑端 v0.1.1 / 手机 APK v0.1.0 实验测试版。最低 Android 13，按 Android 16 / API 36 编译。尚未完成真机验收。** 本项目不能保证绝对安全，也不适合无人值守或支付操作。
 
-**已知网络限制（2026-10-10）：** 开发工作站能够注册默认 Cloudflare 临时隧道，但 Node 和 Windows curl 访问其公网 HTTPS 地址都发生连接重置。该工作站上的跨网控制尚未打通；启动器遇到此情况会停止，不会显示虚假的可用会话。APK 可下载安装审查，但不能据此认定已具备可用的远程控制链路。
+**连接更新（2026-10-10）：** 原 Cloudflare 临时入口在本工作站发生 HTTPS 连接重置。电脑端 v0.1.1 改用 LocalTunnel 测试入口，已验证真实公网 HTTPS、加密模拟指令往返、管理端口隔离和撤销；手机 APK 无需更新。真实手机及移动网络仍需配对验收，入口可达不等于手机已连接。
 
-[下载 APK 和电脑端包](https://github.com/IamV123/codex-android-control/releases/tag/v0.1.0)
+[下载 APK 和电脑端包](https://github.com/IamV123/codex-android-control/releases/tag/v0.1.1)
 
 ## 授权规则
 
@@ -38,12 +38,12 @@
 ### Windows 电脑
 
 1. 安装 [Node.js](https://nodejs.org/) 22 或更高版本，以及已登录的 Codex。
-2. 下载并解压 Release 中的 `codex-android-control-v0.1.0-desktop.zip` 到固定目录。
-3. 双击 `Start-Desktop.cmd`。首次运行会安装锁定版本的二维码依赖并下载官方 Cloudflare 隧道程序；执行前核对固定 SHA-256。浏览器打开本机配对页面。
+2. 下载并解压 Release 中的 `codex-android-control-v0.1.1-desktop.zip` 到固定目录。
+3. 双击 `Start-Desktop.cmd`。首次运行会安装锁定版本的二维码依赖。连接测试通过后，浏览器打开本机配对页面。
 4. 第一次运行 `Connect-Codex.ps1`，然后重开 Codex 聊天/应用，载入名为 `android_control` 的 MCP。已有同名配置时脚本会停止，不覆盖它。
 5. 手机配对后，可对 Codex 说：“查看手机连接状态”“打开我授权的小红书”。没有真机连接时，工具会明确返回未连接。
 
-电脑需要保持运行和联网。手机和电脑不必在同一 Wi-Fi。默认 Cloudflare Quick Tunnel 的地址临时变化，只适合测试，网络环境可能影响连通性；它不是可用性保证。配置自己的固定 HTTPS 入口时，设定 `CAC_PUBLIC_ORIGIN`，并且只代理 `127.0.0.1:18766`；**绝对不要代理管理端口 18765**。
+电脑需要保持运行和联网。手机和电脑不必在同一 Wi-Fi。默认 LocalTunnel 地址临时变化，只适合测试，不提供可用性保证；其中电脑到中继的一段使用 TCP，业务帧另有端到端加密，详细限制见 SECURITY.md。需要试用原 Cloudflare 通道时，设定 `CAC_TUNNEL_PROVIDER=cloudflare`；启动器会下载并校验固定版本程序。配置自己的固定 HTTPS 入口时，设定 `CAC_PUBLIC_ORIGIN`，并且只代理 `127.0.0.1:18766`；**绝对不要代理管理端口 18765**。
 
 停止电脑端程序会撤销会话。卸载 MCP：`codex mcp remove android_control`。这不会改动其他 MCP 配置。
 
@@ -83,6 +83,7 @@ node tools/test-cross-crypto.mjs
 - `desktop/src/broker.mjs`：分别监听的本机管理服务和加密手机通道。
 - `desktop/src/mcp.mjs`：stdio MCP，供 Codex 连接。
 - `desktop/src/launch.mjs`：启动临时隧道和配对页。
+- `desktop/src/localtunnel.mjs`：仅转发加密手机端口的临时中继适配器，无额外运行依赖。
 - `desktop/test/`、`tools/`：协议、安全边界及 Java/Node 加密互通测试。
 
 这是独立实现，不是原项目的官方版本。设计前参考了 [miko684/codex-control-android-mcp](https://github.com/miko684/codex-control-android-mcp) 和 [bsaisuryacharan/android-use](https://github.com/bsaisuryacharan/android-use) 的公开方案；未复制它们的实现代码。二维码依赖 `qrcode`，隧道程序来自 Cloudflare 官方发行版。

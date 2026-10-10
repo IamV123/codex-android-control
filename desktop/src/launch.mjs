@@ -3,16 +3,24 @@ import {mkdirSync,writeFileSync,rmSync,existsSync} from 'node:fs';
 import {resolve,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {Broker} from './broker.mjs';
+import {startLocalTunnel} from './localtunnel.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url));
 const stateDir=resolve(process.env.CAC_RUNTIME||resolve(here,'../.runtime'));
 mkdirSync(stateDir,{recursive:true,mode:0o700});
 const state=resolve(stateDir,'broker.json');
 const broker=await new Broker().start();
-let tunnel,stopping=false;
-async function stop(code=0){if(stopping)return;stopping=true;tunnel?.kill();await broker.close();rmSync(state,{force:true});process.exit(code);}
+let tunnel,backup,stopping=false;
+async function stop(code=0){if(stopping)return;stopping=true;tunnel?.kill();backup?.close();await broker.close();rmSync(state,{force:true});process.exit(code);}
 process.on('SIGINT',()=>stop());process.on('SIGTERM',()=>stop());
 let endpoint=process.env.CAC_PUBLIC_ORIGIN;
+const provider=process.env.CAC_TUNNEL_PROVIDER||'localtunnel';
+if(!['localtunnel','cloudflare'].includes(provider)){console.error('Unknown tunnel provider.');await stop(1);}
+if(!endpoint&&provider==='localtunnel'){
+  console.log('Connecting the encrypted phone channel (up to 25 seconds)...');
+  try{backup=await startLocalTunnel(broker.phonePort,{onFailure:()=>{console.error('Phone tunnel stopped. Session revoked.');stop(1);}});endpoint=backup.url;}
+  catch(e){console.error(e.message);await stop(1);}
+}
 if(!endpoint){
   const exe=resolve(here,'../bin/cloudflared.exe');
   if(!existsSync(exe)){console.error('Run Start-Desktop.ps1 first to download the verified tunnel client.');await stop(1);}
@@ -39,7 +47,7 @@ try {
   broker.createSession(endpoint);
   let reachable=false;
   for(let attempt=0;attempt<3;attempt++){
-    try{const r=await fetch(endpoint+'/phone/v1/exchange',{method:'POST',signal:AbortSignal.timeout(6000)});if(r.status===401){reachable=true;break;}}catch{}
+    try{const r=await fetch(endpoint+'/phone/v1/exchange',{method:'POST',redirect:'error',signal:AbortSignal.timeout(6000)});if(r.status===401){reachable=true;break;}}catch{}
     await new Promise(r=>setTimeout(r,1500));
   }
   if(!reachable)throw new Error('Public HTTPS route is unreachable. No ready session will be advertised.');
@@ -47,4 +55,5 @@ try {
 writeFileSync(state,JSON.stringify({port:broker.adminPort,key:broker.adminKey}),{mode:0o600});
 console.log(`Desktop ready: http://127.0.0.1:${broker.adminPort}/`);
 console.log('Pair only from the local dashboard. Close this program to revoke the session.');
-if(process.platform==='win32')spawn('explorer.exe',[`http://127.0.0.1:${broker.adminPort}/`],{windowsHide:true,stdio:'ignore'}).unref();
+console.log('The endpoint is reachable. Wait for the dashboard to show the actual phone before requesting actions.');
+if(process.platform==='win32'&&process.env.CAC_NO_OPEN_BROWSER!=='1')spawn('explorer.exe',[`http://127.0.0.1:${broker.adminPort}/`],{windowsHide:true,stdio:'ignore'}).unref();
