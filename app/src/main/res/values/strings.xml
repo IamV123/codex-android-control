@@ -1,4 +1,8 @@
 <resources>
     <string name="accessibility_description">仅在你启动的限时会话中，读取和操作你在本机勾选的应用。已勾选应用可连续点击、输入和滚动，无需逐次确认。未勾选应用不能读取或操作，返回和桌面动作也会拒绝。屏幕文字会发送给电脑及你使用的 AI 服务。随时通过通知停止。</string>
     <string name="app_choice">%1$s\n%2$s</string>
+    <string name="selected_apps">已勾选 %1$d 个应用</string>
+    <string name="app_matches">已勾选 %1$d 个应用 · 搜索结果 %2$d 个</string>
+    <string name="page_counter"> %1$d / %2$d 页 </string>
+    <string name="session_remaining">%1$s\n本次授权剩余 %2$s</string>
 </resources>

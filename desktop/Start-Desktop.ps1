@@ -1,4 +1,4 @@
-param([switch]$NoLaunch)
+param([switch]$NoLaunch,[switch]$NoBrowser)
 $ErrorActionPreference = 'Stop'
 $desktopRoot = $PSScriptRoot
 $nodePath = (Get-Command node -ErrorAction SilentlyContinue).Source
@@ -29,5 +29,8 @@ try {
     }
     if ((Get-FileHash -LiteralPath $tunnelExe -Algorithm SHA256).Hash.ToLowerInvariant() -ne $manifest.sha256) { throw 'Tunnel client hash mismatch. File was not executed.' }
     }
-    if (-not $NoLaunch) { & $nodePath (Join-Path $desktopRoot 'src/launch.mjs') }
+    if (-not $NoLaunch) {
+        if ($NoBrowser) { $env:CAC_NO_OPEN_BROWSER='1' }
+        & $nodePath (Join-Path $desktopRoot 'src/supervise.mjs')
+    }
 } finally { Pop-Location }

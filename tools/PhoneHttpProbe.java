@@ -8,9 +8,9 @@ import javax.net.ssl.HttpsURLConnection;
 public final class PhoneHttpProbe {
     public static void main(String[] args)throws Exception{
         BufferedReader in=new BufferedReader(new InputStreamReader(System.in,StandardCharsets.UTF_8));
-        String endpoint=in.readLine(),token=in.readLine();
+        String endpoint=in.readLine(),path=in.readLine(),token=in.readLine();
         byte[] body=in.readLine().getBytes(StandardCharsets.UTF_8);
-        HttpsURLConnection connection=PhoneHttp.open(endpoint,token,body.length);
+        HttpsURLConnection connection=PhoneHttp.open(endpoint,path,token,body.length);
         try{
             try(OutputStream out=connection.getOutputStream()){out.write(body);}
             System.out.write(PhoneHttp.read(connection));

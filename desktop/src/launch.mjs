@@ -4,21 +4,26 @@ import {resolve,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {Broker} from './broker.mjs';
 import {startLocalTunnel} from './localtunnel.mjs';
+import {StateStore} from './state-store.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url));
 const stateDir=resolve(process.env.CAC_RUNTIME||resolve(here,'../.runtime'));
 mkdirSync(stateDir,{recursive:true,mode:0o700});
 const state=resolve(stateDir,'broker.json');
-const broker=await new Broker().start();
+const temporary=process.env.CAC_TEMPORARY_TUNNEL==='1';
+const store=temporary?null:new StateStore(resolve(stateDir,'continuity.json'));
+const broker=await new Broker({store}).start();
 let tunnel,backup,stopping=false;
 async function stop(code=0){if(stopping)return;stopping=true;tunnel?.kill();backup?.close();await broker.close();rmSync(state,{force:true});process.exit(code);}
 process.on('SIGINT',()=>stop());process.on('SIGTERM',()=>stop());
 let endpoint=process.env.CAC_PUBLIC_ORIGIN;
 const provider=process.env.CAC_TUNNEL_PROVIDER||'localtunnel';
+async function verifyRoute(endpoint){for(let attempt=0;attempt<3;attempt++){try{const r=await fetch(endpoint+'/phone/v3/health',{headers:{'User-Agent':'CodexAndroidControl/0.1.7',Accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(6000)});if(r.status===200&&(await r.json()).server===broker.healthId)return true;}catch{}await new Promise(r=>setTimeout(r,1000));}return false;}
 if(!['localtunnel','cloudflare'].includes(provider)){console.error('Unknown tunnel provider.');await stop(1);}
+if(!endpoint&&provider==='cloudflare'&&!temporary){console.error('Restart recovery needs a fixed HTTPS origin. Set CAC_PUBLIC_ORIGIN for your managed Cloudflare tunnel, or use the default fixed LocalTunnel channel.');await stop(1);}
 if(!endpoint&&provider==='localtunnel'){
-  console.log('Connecting the encrypted phone channel (up to 25 seconds)...');
-  try{backup=await startLocalTunnel(broker.phonePort,{onFailure:()=>{console.error('Phone tunnel stopped. Session revoked.');stop(1);}});endpoint=backup.url;}
+  console.log('Connecting or restoring the fixed encrypted phone channel...');
+  try{backup=await startLocalTunnel(broker.phonePort,{subdomain:store?.value.tunnelName||null,cached:store?.value.tunnelCache||null,onAllocation:info=>{broker.restore(info.url);if(store)store.save({...store.value,tunnelCache:info});},verify:verifyRoute,onFailure:()=>{console.error('Phone tunnel stopped. Authorized phone waits for reconnection.');stop(1);}});endpoint=backup.url;}
   catch(e){console.error(e.message);await stop(1);}
 }
 if(!endpoint){
@@ -39,21 +44,17 @@ if(!endpoint){
     tunnel.once('error',e=>{clearTimeout(timeout);reject(e);});
     tunnel.once('exit',()=>{clearTimeout(timeout);reject(new Error('Tunnel exited.'));});
   }).catch(async e=>{console.error(e.message+' Check whether this network permits Cloudflare Tunnel. No phone session was opened.');await stop(1);});
-  tunnel.on('exit',()=>{if(!stopping){console.error('Tunnel stopped. Session revoked.');stop(1);}});
+  tunnel.on('exit',()=>{if(!stopping){console.error('Tunnel stopped. Authorized phone waits for reconnection.');stop(1);}});
 }
 if(!endpoint)process.exit(1);
 try {
   // An allocated URL is not evidence that the tunnel can carry traffic.
-  broker.createSession(endpoint);
-  let reachable=false;
-  for(let attempt=0;attempt<3;attempt++){
-    try{const r=await fetch(endpoint+'/phone/v2/connect',{method:'POST',redirect:'error',signal:AbortSignal.timeout(6000)});if(r.status===401){reachable=true;break;}}catch{}
-    await new Promise(r=>setTimeout(r,1500));
-  }
+  broker.restore(endpoint);
+  const reachable=backup?true:await verifyRoute(endpoint);
   if(!reachable)throw new Error('Public HTTPS route is unreachable. No ready session will be advertised.');
 }catch(e){console.error(e.message);await stop(1);}
-writeFileSync(state,JSON.stringify({port:broker.adminPort,key:broker.adminKey}),{mode:0o600});
+writeFileSync(state,JSON.stringify({port:broker.adminPort,key:broker.adminKey,pid:process.pid,version:'0.1.7'}),{mode:0o600});
 console.log(`Desktop ready: http://127.0.0.1:${broker.adminPort}/`);
-console.log('Pair only from the local dashboard. Close this program to revoke the session.');
+console.log('Pair only from the local dashboard. Closing this program pauses the connection; use the phone Stop or dashboard Revoke to end authorization.');
 console.log('The endpoint is reachable. Wait for the dashboard to show the actual phone before requesting actions.');
 if(process.platform==='win32'&&process.env.CAC_NO_OPEN_BROWSER!=='1')spawn('explorer.exe',[`http://127.0.0.1:${broker.adminPort}/`],{windowsHide:true,stdio:'ignore'}).unref();

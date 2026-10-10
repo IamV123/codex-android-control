@@ -146,7 +146,7 @@ test('pairing only permits a clean HTTPS origin',async t=>{
 });
 test('oversized authenticated body is rejected before JSON processing',async t=>{
   const {broker,c}=await fixture(t);
-  const r=await fetch(`http://127.0.0.1:${broker.phonePort}/phone/v2/exchange`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+c.token},body:'x'.repeat(360001)});
+  const r=await fetch(`http://127.0.0.1:${broker.phonePort}/phone/v3/exchange`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+c.token},body:'x'.repeat(360001)});
   assert.equal(r.status,400);
 });
 test('dashboard has no third-party resources and cannot be framed',async t=>{

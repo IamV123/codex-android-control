@@ -8,12 +8,12 @@ import java.util.Locale;
 
 /** Shared by Android and the JVM network smoke test; never logs credentials. */
 final class PhoneHttp {
-    static final String USER_AGENT="CodexAndroidControl/0.1.6";
+    static final String USER_AGENT="CodexAndroidControl/0.1.7";
     static HttpsURLConnection open(String endpoint,String token,int length)throws IOException{
-        return open(endpoint,"/phone/v2/exchange",token,length);
+        return open(endpoint,"/phone/v3/exchange",token,length);
     }
     static HttpsURLConnection open(String endpoint,String path,String token,int length)throws IOException{
-        if(!path.equals("/phone/v2/connect")&&!path.equals("/phone/v2/exchange"))throw new IOException("invalid_phone_path");
+        if(!path.equals("/phone/v3/challenge")&&!path.equals("/phone/v3/connect")&&!path.equals("/phone/v3/exchange"))throw new IOException("invalid_phone_path");
         HttpsURLConnection c=(HttpsURLConnection)new URL(endpoint+path).openConnection();
         c.setInstanceFollowRedirects(false);c.setConnectTimeout(10000);c.setReadTimeout(25000);
         c.setRequestMethod("POST");c.setDoOutput(true);
