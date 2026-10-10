@@ -1,9 +1,10 @@
 ﻿$ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-$Version = '0.1.9'
+$Version = '0.1.10'
 $base = if ($env:CAC_INSTALL_BASE) { $env:CAC_INSTALL_BASE } else { "https://github.com/IamV123/codex-android-control/releases/download/v$Version" }
-$target = if ($env:CAC_INSTALL_TARGET) { $env:CAC_INSTALL_TARGET } else { Join-Path $env:LOCALAPPDATA 'CodexAndroidControl' }
+$target = if ($env:CAC_INSTALL_TARGET) { $env:CAC_INSTALL_TARGET } else { Join-Path $env:USERPROFILE 'CodexAndroidControl' }
+$installStart = Get-Date
 $work = $null
 function Stop-Install([string]$message) { Write-Output $message; exit 1 }
 try {
@@ -35,12 +36,24 @@ try {
     Fetch $zipName $zipFile
     if ((Get-FileHash -LiteralPath $zipFile -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) { Stop-Install '下载的压缩包校验不符，已取消安装。请重新运行同一条命令。' }
 
+    $listenPids = @{}
+    try {
+        Get-NetTCPConnection -State Listen -LocalPort 18764, 18765, 18766 -ErrorAction Stop | Where-Object { $_.LocalAddress -eq '127.0.0.1' } | ForEach-Object { $listenPids[[int]$_.OwningProcess] = $true }
+    } catch {
+        netstat -ano 2>$null | ForEach-Object {
+            if ($_ -match '127\.0\.0\.1:(?:18764|18765|18766)\s+\S+\s+LISTENING\s+(\d+)') { $listenPids[[int]$Matches[1]] = $true }
+        }
+    }
     $stoppedDesks = @{}
     Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.ProcessId -ne $PID } | ForEach-Object {
         $cl = $_.CommandLine; $desk = $null
-        if ($cl -match '.*([A-Za-z]:[\\/][^"]*?)[\\/]src[\\/](?:supervise|launch)\.mjs') { $desk = $Matches[1].Trim() }
-        elseif ($cl -match '--url +http://127\.0\.0\.1:18766' -and $cl -match '.*([A-Za-z]:[\\/][^"]*?)[\\/]bin[\\/]cloudflared\.exe') { $desk = $Matches[1].Trim() }
-        if ($desk -and (Test-Path -LiteralPath (Join-Path $desk 'Start-Desktop.ps1'))) {
+        if ($cl -match '.*([A-Za-z]:[\\/][^"]*?)[\\/]src[\\/](?:supervise|launch)\.mjs') {
+            $candidate = $Matches[1].Trim()
+            if ($listenPids.ContainsKey([int]$_.ProcessId) -or ($_.Name -eq 'node.exe' -and $cl -match '[\\/]desktop[\\/]src[\\/]')) { $desk = $candidate }
+        } elseif ($cl -match '--url +http://127\.0\.0\.1:18766' -and $cl -match '.*([A-Za-z]:[\\/][^"]*?)[\\/]bin[\\/]cloudflared\.exe') {
+            $desk = $Matches[1].Trim()
+        }
+        if ($desk) {
             if (-not $stoppedDesks.ContainsKey($desk)) { $stoppedDesks[$desk] = @() }
             $stoppedDesks[$desk] += $_.ProcessId
         }
@@ -79,20 +92,27 @@ try {
 
     Write-Output '正在启动电脑端（会打开一个黑色窗口，请不要关闭）…'
     Start-Process -FilePath (Join-Path $desktopDir 'Start-Desktop.cmd')
-    $deadline = (Get-Date).AddSeconds(240)
+    $brokerJson = Join-Path $desktopDir '.runtime\broker.json'
+    $deadline = (Get-Date).AddSeconds(300)
     $waited = 0; $ready = $false
     while ((Get-Date) -lt $deadline) {
         try {
-            $response = Invoke-WebRequest -Uri 'http://127.0.0.1:18765/' -UseBasicParsing -TimeoutSec 5
-            if ($response.StatusCode -eq 200) { $ready = $true; break }
+            if ((Test-Path -LiteralPath $brokerJson) -and (Get-Item -LiteralPath $brokerJson).LastWriteTime -ge $installStart) {
+                $state = Get-Content -LiteralPath $brokerJson -Raw | ConvertFrom-Json
+                if ($state.version -eq $Version -and (Get-Process -Id ([int]$state.pid) -ErrorAction SilentlyContinue)) {
+                    $status = Invoke-RestMethod -Uri ('http://127.0.0.1:' + $state.port + '/api/status') -Headers @{ 'X-Admin-Key' = $state.key } -TimeoutSec 5
+                    if ($status.active -eq $true) { $ready = $true; break }
+                }
+            }
         } catch {}
-        $waited += 5
-        Write-Output "等待电脑端就绪…（已等待 $waited 秒）"
-        Start-Sleep -Seconds 5
+        $waited += 10
+        Write-Output "等待手机通道就绪…（已等待 $waited 秒，通常 1–3 分钟）"
+        Start-Sleep -Seconds 10
     }
     if (-not $ready) { Stop-Install '启动超时：新打开的电脑端窗口里显示了原因。请按窗口提示处理后，重新运行同一条命令。' }
 
-    Write-Output '安装完成，电脑端已启动，配对网页：http://127.0.0.1:18765/ （浏览器没自动打开就手动打开）。'
+    Write-Output '安装完成，电脑端已就绪，配对网页：http://127.0.0.1:18765/ （浏览器没自动打开就手动打开）。'
+    Write-Output "安装位置：$desktopDir"
     Write-Output '接下来：'
     Write-Output '1. 完全退出 Codex（包括右下角托盘图标），重新打开，新建一个任务。'
     Write-Output '2. 手机安装 App：用手机相机扫配对网页上的“下载手机 App”二维码，或在手机浏览器打开 https://github.com/IamV123/codex-android-control/releases/latest/download/codex-android-control.apk'

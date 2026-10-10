@@ -55,5 +55,5 @@ final class Session {
         stopped=true;Arrays.fill(master,(byte)0);Arrays.fill(pairKey,(byte)0);if(connection!=null)connection.clear();
         if(current==this){current=null;if(!lastStatus.startsWith("连接失败"))lastStatus="已停止并撤销授权；可调整勾选后重新确认开始";}
     }
-    JSONObject status()throws Exception{return new JSONObject().put("apps",new org.json.JSONArray(grants)).put("version","0.1.9").put("remainingSeconds",Math.max(0,(expires-SystemClock.elapsedRealtime())/1000));}
+    JSONObject status()throws Exception{return new JSONObject().put("apps",new org.json.JSONArray(grants)).put("version","0.1.10").put("remainingSeconds",Math.max(0,(expires-SystemClock.elapsedRealtime())/1000));}
 }
