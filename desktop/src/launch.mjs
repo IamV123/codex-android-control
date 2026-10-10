@@ -18,7 +18,7 @@ const broker=await new Broker({store}).start();
 let tunnel,backup,stopping=false;
 async function stop(code=0){if(stopping)return;stopping=true;tunnel?.kill();backup?.close();await broker.close();rmSync(state,{force:true});process.exit(code);}
 process.on('SIGINT',()=>stop());process.on('SIGTERM',()=>stop());
-async function verifyRoute(endpoint){for(let attempt=0;attempt<10;attempt++){try{const r=await fetch(endpoint+'/phone/v3/health',{headers:{'User-Agent':'CodexAndroidControl/0.1.8',Accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(6000)});if(r.status===200&&(await r.json()).server===broker.healthId)return true;}catch{}await new Promise(r=>setTimeout(r,1500));}return false;}
+async function verifyRoute(endpoint){const deadline=Date.now()+120000;await new Promise(r=>setTimeout(r,5000));while(Date.now()<deadline){try{const r=await fetch(endpoint+'/phone/v3/health',{headers:{'User-Agent':'CodexAndroidControl/0.1.8',Accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(6000)});if(r.status===200&&(await r.json()).server===broker.healthId)return true;}catch{}await new Promise(r=>setTimeout(r,2000));}return false;}
 if(!['localtunnel','cloudflare'].includes(provider)){console.error('Unknown tunnel provider.');await stop(1);}
 if(!endpoint&&provider==='localtunnel'){
   console.log('Connecting or restoring the fixed encrypted phone channel...');
@@ -29,7 +29,7 @@ if(!endpoint){
   const exe=resolve(here,'../bin/cloudflared.exe');
   if(!existsSync(exe)){console.error('Run Start-Desktop.ps1 first to download the verified tunnel client.');await stop(1);}
   tunnel=spawn(exe,['tunnel','--no-autoupdate','--url',`http://127.0.0.1:${broker.phonePort}`,'--protocol','http2'],{windowsHide:true,stdio:['ignore','ignore','pipe']});
-  console.log('Connecting the temporary HTTPS tunnel (up to 45 seconds)...');
+  console.log('Connecting the temporary HTTPS tunnel (up to 3 minutes)...');
   endpoint=await new Promise((resolveEndpoint,reject)=>{
     let publicOrigin=null,registered=false,logTail='';
     const timeout=setTimeout(()=>reject(new Error('Tunnel did not become ready within 45 seconds.')),45000);

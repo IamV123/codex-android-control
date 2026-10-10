@@ -19,7 +19,7 @@ let failures=0;
 while(!ending){
   if(await healthy()){console.log('An existing desktop is running. No duplicate was started.');await end();break;}
   log(new Date().toISOString()+' Starting desktop connection.\n');
-  console.log('正在连接手机通道，约需 1–2 分钟，请不要关闭此窗口…');
+  console.log('正在连接手机通道，约需 1–3 分钟，请不要关闭此窗口…');
   child=spawn(process.execPath,[resolve(root,'src/launch.mjs')],{cwd:root,env:{...process.env,CAC_RUNTIME:runtime,CAC_NO_OPEN_BROWSER:process.env.CAC_NO_OPEN_BROWSER==='1'||opened?'1':'0'},windowsHide:true,stdio:['ignore','pipe','pipe']});
   child.stdout.on('data',b=>{const text=b.toString();if(text.includes('Desktop ready:')){opened=true;console.log('已就绪：配对网页 http://127.0.0.1:18765/ （浏览器会自动打开；没打开就手动复制这个地址）。不要关闭此窗口，关闭后手机会断开。');}log(text);});child.stderr.on('data',b=>log(b.toString()));
   const started=Date.now();
