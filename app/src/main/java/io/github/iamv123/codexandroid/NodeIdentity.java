@@ -9,7 +9,7 @@ public record NodeIdentity(String pkg, String viewId, String className, String t
                 || scrollable != current.scrollable) return false;
         if (action.equals("phone_scroll") || action.equals("phone_swipe")) return true;
         if (action.equals("phone_type")) return editable;
-        return action.equals("phone_click") && text.equals(current.text)
+        return (action.equals("phone_click") || action.equals("phone_long_press")) && text.equals(current.text)
                 && description.equals(current.description);
     }
 }

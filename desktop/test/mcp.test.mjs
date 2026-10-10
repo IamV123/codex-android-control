@@ -19,8 +19,11 @@ test('MCP initialize, tool enumeration, status and rejected offline action',asyn
   function rpc(method,params={}) {const id=++nextId;return new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('MCP timeout')),5000);waiters.set(id,r=>{clearTimeout(timer);resolve(r);});child.stdin.write(JSON.stringify({jsonrpc:'2.0',id,method,params})+'\n');});}
   const initialized=await rpc('initialize',{protocolVersion:'2025-06-18',capabilities:{},clientInfo:{name:'test',version:'1'}});
   assert.equal(initialized.result.protocolVersion,'2025-06-18');
-  const list=await rpc('tools/list');assert.equal(list.result.tools.length,10);assert.equal(list.result.tools.some(t=>t.name==='phone_swipe_feed'),true);assert.equal(list.result.tools.some(t=>t.name.includes('grant')),false);assert.equal(list.result.tools.some(t=>t.name==='phone_click'),false);
+  const list=await rpc('tools/list');assert.equal(list.result.tools.length,13);assert.equal(list.result.tools.some(t=>t.name==='phone_swipe_feed'),true);assert.equal(list.result.tools.some(t=>t.name.includes('grant')),false);assert.equal(list.result.tools.some(t=>t.name==='phone_click'),false);
   const status=await rpc('tools/call',{name:'phone_status',arguments:{}});assert.equal(JSON.parse(status.result.content[0].text).active,false);
   const action=await rpc('tools/call',{name:'phone_home',arguments:{}});assert.equal(action.result.isError,true);assert.equal(action.result.content[0].text,'phone_not_connected');
+  broker.operator.run=async()=>({found:false,screenshot:{data:'/9j/2Q==',mimeType:'image/jpeg',width:540,height:1200}});
+  const picture=await rpc('tools/call',{name:'phone_tap_text',arguments:{text:'missing'}});
+  assert.equal(picture.result.content[0].type,'image');assert.equal(picture.result.content[0].mimeType,'image/jpeg');assert.equal(JSON.parse(picture.result.content[1].text).screenshot.width,540);
   assert.equal(stderr,'');
 });

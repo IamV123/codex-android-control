@@ -15,9 +15,9 @@ function fixture(handler,{status={active:true,connected:true}}={}){
 }
 const readCalls=calls=>calls.filter(c=>c.name==='phone_read_screen').length;
 
-test('action tool list exposes exactly the ten compound tools and hides aliases',()=>{
-  assert.equal(ACTION_TOOLS.length,10);
-  for(const name of ['phone_status','phone_read_screen','phone_open_app','phone_tap','phone_tap_text','phone_type','phone_swipe','phone_swipe_feed','phone_back','phone_home'])
+test('action tool list exposes the thirteen compound tools and hides aliases',()=>{
+  assert.equal(ACTION_TOOLS.length,13);
+  for(const name of ['phone_status','phone_read_screen','phone_open_app','phone_tap','phone_long_press','phone_tap_text','phone_type','phone_screenshot','phone_tap_point','phone_swipe','phone_swipe_feed','phone_back','phone_home'])
     assert.ok(ACTION_TOOLS.some(t=>t.name===name),name);
   assert.equal(ACTION_TOOLS.some(t=>['phone_click','phone_scroll','grant'].includes(t.name)),false);
 });

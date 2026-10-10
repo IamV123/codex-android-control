@@ -6,8 +6,8 @@ const suffix=process.platform==='win32'?'.exe':'';
 const java=process.env.JAVA_HOME?resolve(process.env.JAVA_HOME,'bin/java'+suffix):'java';
 const javac=process.env.JAVA_HOME?resolve(process.env.JAVA_HOME,'bin/javac'+suffix):'javac';
 const output=resolve('tools/build');
-const sources=['Crypto.java','ConnectionKeys.java','Policy.java','NodeIdentity.java','SwipePlan.java','TapPlan.java','Duration.java','AppPage.java','RetryPolicy.java'].map(n=>'app/src/main/java/io/github/iamv123/codexandroid/'+n);
-let r=spawnSync(javac,['-encoding','UTF-8','-d',output,...sources,'tools/PolicyCryptoTest.java','tools/NodeIdentityTest.java','tools/SwipePlanTest.java','tools/TapPlanTest.java','tools/ConnectionKeysTest.java','tools/RecoveryUiTest.java','tools/RecoveryCryptoTest.java'],{encoding:'utf8'});assert.equal(r.status,0,r.stderr);
+const sources=['Crypto.java','ConnectionKeys.java','Policy.java','NodeIdentity.java','SwipePlan.java','TapPlan.java','ScreenshotPlan.java','Duration.java','AppPage.java','RetryPolicy.java'].map(n=>'app/src/main/java/io/github/iamv123/codexandroid/'+n);
+let r=spawnSync(javac,['-encoding','UTF-8','-d',output,...sources,'tools/PolicyCryptoTest.java','tools/NodeIdentityTest.java','tools/SwipePlanTest.java','tools/TapPlanTest.java','tools/ScreenshotPlanTest.java','tools/ConnectionKeysTest.java','tools/RecoveryUiTest.java','tools/RecoveryCryptoTest.java'],{encoding:'utf8'});assert.equal(r.status,0,r.stderr);
 r=spawnSync(java,['-Dfile.encoding=UTF-8','-cp',output,'io.github.iamv123.codexandroid.PolicyCryptoTest'],{encoding:'utf8'});assert.equal(r.status,0,r.stderr);
 const lines=r.stdout.trim().split(/\r?\n/),master=Buffer.from(Array.from({length:32},(_,i)=>i)),id='0123456789abcdef0123456789abcdef',c=credentials(master,id);
 assert.equal(c.key.toString('base64'),lines[1]);assert.deepEqual(unseal(c.key,id,'phone',0,{session:id,seq:1,nonce:lines[2],data:lines[3]}),{message:'你好'});
@@ -32,3 +32,5 @@ assert.deepEqual(unseal(c.key,id,'phone-connect',0,{session:id,seq:1,nonce:v3[2]
 const challengeResponse=seal(transport.key,wire,'desktop-challenge',1,{event:'challenge',client,challenge:'a'.repeat(43)});
 r=spawnSync(java,['-Dfile.encoding=UTF-8','-cp',output,'io.github.iamv123.codexandroid.RecoveryCryptoTest',master.toString('base64url'),wire,'desktop-challenge',challengeResponse.nonce,challengeResponse.data],{encoding:'utf8'});assert.equal(r.status,0,r.stderr);assert.deepEqual(JSON.parse(r.stdout),{event:'challenge',client,challenge:'a'.repeat(43)});
 console.log('Protocol v3 fresh challenge and reconnect handshake Java/Node interoperability passed.');
+
+r=spawnSync(java,['-Dfile.encoding=UTF-8','-cp',output,'io.github.iamv123.codexandroid.ScreenshotPlanTest'],{encoding:'utf8'});assert.equal(r.status,0,r.stderr);console.log(r.stdout.trim());

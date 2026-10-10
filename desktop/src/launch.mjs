@@ -18,7 +18,7 @@ const broker=await new Broker({store}).start();
 let tunnel,backup,stopping=false;
 async function stop(code=0){if(stopping)return;stopping=true;tunnel?.kill();backup?.close();await broker.close();rmSync(state,{force:true});process.exit(code);}
 process.on('SIGINT',()=>stop());process.on('SIGTERM',()=>stop());
-async function verifyRoute(endpoint){const deadline=Date.now()+120000;await new Promise(r=>setTimeout(r,5000));while(Date.now()<deadline){try{const r=await fetch(endpoint+'/phone/v3/health',{headers:{'User-Agent':'CodexAndroidControl/0.1.10',Accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(6000)});if(r.status===200&&(await r.json()).server===broker.healthId)return true;}catch{}await new Promise(r=>setTimeout(r,2000));}return false;}
+async function verifyRoute(endpoint){const deadline=Date.now()+120000;await new Promise(r=>setTimeout(r,5000));while(Date.now()<deadline){try{const r=await fetch(endpoint+'/phone/v3/health',{headers:{'User-Agent':'CodexAndroidControl/0.1.11',Accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(6000)});if(r.status===200&&(await r.json()).server===broker.healthId)return true;}catch{}await new Promise(r=>setTimeout(r,2000));}return false;}
 if(!['localtunnel','cloudflare'].includes(provider)){console.error('Unknown tunnel provider.');await stop(1);}
 if(!endpoint&&provider==='localtunnel'){
   console.log('Connecting or restoring the fixed encrypted phone channel...');
@@ -52,7 +52,7 @@ try {
   const reachable=backup?true:await verifyRoute(endpoint);
   if(!reachable)throw new Error('Public HTTPS route is unreachable. No ready session will be advertised.');
 }catch(e){console.error(e.message);await stop(1);}
-writeFileSync(state,JSON.stringify({port:broker.adminPort,key:broker.adminKey,pid:process.pid,version:'0.1.10'}),{mode:0o600});
+writeFileSync(state,JSON.stringify({port:broker.adminPort,key:broker.adminKey,pid:process.pid,version:'0.1.11'}),{mode:0o600});
 console.log(`Desktop ready: http://127.0.0.1:${broker.adminPort}/`);
 console.log('Pair only from the local dashboard. Closing this program pauses the connection; use the phone Stop or dashboard Revoke to end authorization.');
 console.log('The endpoint is reachable. Wait for the dashboard to show the actual phone before requesting actions.');

@@ -1,7 +1,7 @@
 ﻿$ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-$Version = '0.1.10'
+$Version = '0.1.11'
 $base = if ($env:CAC_INSTALL_BASE) { $env:CAC_INSTALL_BASE } else { "https://github.com/IamV123/codex-android-control/releases/download/v$Version" }
 $target = if ($env:CAC_INSTALL_TARGET) { $env:CAC_INSTALL_TARGET } else { Join-Path $env:USERPROFILE 'CodexAndroidControl' }
 $installStart = Get-Date

@@ -171,4 +171,6 @@ test('dashboard has no third-party resources and cannot be framed',async t=>{
   const r=await fetch(`http://127.0.0.1:${broker.adminPort}/`);const html=await r.text();
   assert.equal(r.status,200);assert.match(r.headers.get('content-security-policy'),/frame-ancestors 'none'/);
   assert.doesNotMatch(html,/<script[^>]+src=/);assert.match(html,/data:image\/png/);
+  assert.match(html,/<link rel="icon" type="image\/png" href="data:image\/png;base64,[A-Za-z0-9+/=]+">/);
+  assert.match(r.headers.get('content-security-policy'),/default-src 'none'; img-src data:; style-src 'nonce-/);
 });

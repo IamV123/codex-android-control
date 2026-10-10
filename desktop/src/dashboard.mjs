@@ -38,11 +38,12 @@ async function refreshDashboard(){
     if(s.pairId!==displayedPairId)showPair(await api('pair'));
     const r=s.remainingSeconds,duration=r>=86400?Math.floor(r/86400)+' 天 '+Math.floor(r%86400/3600)+' 小时':r>=3600?Math.floor(r/3600)+' 小时 '+Math.floor(r%3600/60)+' 分钟':r>=60?Math.floor(r/60)+' 分钟':'不足 1 分钟';
     state.textContent=(s.active?'配对有效':'已撤销')+' · '+(s.connected?'手机已连接':'等待手机')+' · 剩余 '+duration+'\n'+(s.phone?.apps?.join('\n')||'尚未授权任何应用');
+    if(s.phone)state.textContent+='\n截图识别：'+(s.phone.screenshotAllowed?'允许（读不到按钮时使用）':'手机未允许');
     if(s.phone?.locked)state.textContent+='\n手机已锁屏，暂停操作；本机解锁后恢复。';
     if(s.persistent)state.textContent+='\n配对已保存在本机，电脑端重启不会延长有效期。';
     if(s.persistenceFault)state.textContent+='\n本机保存失败，已阻止发送操作。请检查电脑端日志。';
     const review=document.querySelector('#review');if(review){review.hidden=!s.recoveryRequired;review.dataset.operation=s.unconfirmedOperation?.id||'';}
-    if(s.recoveryRequired){const actions={phone_click:'触摸点击',phone_swipe:'滑动',phone_scroll:'翻页',phone_type:'输入文字',phone_open_app:'打开应用',phone_home:'返回桌面',phone_back:'返回'};state.textContent+='\n电脑中断时的“'+(actions[s.unconfirmedOperation.tool]||'手机操作')+'”没有收到回执，未自动重发。先核对手机再解除阻塞。';}
+    if(s.recoveryRequired){const actions={phone_click:'触摸点击',phone_long_press:'长按',phone_tap_point:'截图坐标点按',phone_screenshot:'截图',phone_swipe:'滑动',phone_scroll:'翻页',phone_type:'输入文字',phone_open_app:'打开应用',phone_home:'返回桌面',phone_back:'返回'};state.textContent+='\n电脑中断时的“'+(actions[s.unconfirmedOperation.tool]||'手机操作')+'”没有收到回执，未自动重发。先核对手机再解除阻塞。';}
     if(s.connectionIssue==='frame_replayed')state.textContent+='\n旧连接数据已被拒绝；新版手机重新确认开始会建立新连接。';
     else if(s.connectionIssue==='stale_pair_code')state.textContent+='\n手机提交的是旧配对码。请清空手机配对框，再扫描当前二维码或粘贴上面的完整配对码，然后重新确认开始。';
     else if(s.connectionIssue)state.textContent+='\n连接请求验证失败，请复制新配对码；若再次失败，请让 Codex 检查连接。';

@@ -29,6 +29,8 @@ public final class MainActivity extends Activity {
     private EditText pairing,search,durationValue;
     private TextView state,selectedHeader,selectedPageNumber,unselectedPageNumber;
     private Spinner durationUnit;
+    private CheckBox screenshots;
+    private boolean confirmingIdentity;
     private LinearLayout selectedChoices,unselectedChoices,selectedNav,unselectedNav;
     private Button selectedPrevious,selectedNext,unselectedPrevious,unselectedNext,start,stop;
     private final Set<String> selected=new HashSet<>();
@@ -48,7 +50,7 @@ public final class MainActivity extends Activity {
         root.setOnApplyWindowInsetsListener((view,insets)->{Insets bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout()),keyboard=insets.getInsets(WindowInsets.Type.ime());view.setPadding(bars.left,bars.top,bars.right,Math.max(bars.bottom,keyboard.bottom));return insets;});
         ScrollView scroll=new ScrollView(this);LinearLayout page=new LinearLayout(this);page.setOrientation(LinearLayout.VERTICAL);page.setPadding(dp(20),dp(20),dp(20),dp(16));scroll.addView(page);
         root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);root.requestApplyInsets();
-        text(page,"Codex 安卓助手",27);text(page,"Android 13+ · 测试版 0.1.10\n仅允许你勾选的应用。电脑端运行期间断网会自动等待重连；电脑或电脑端程序重启后地址会变，需要用新配对码重新连接。",15);
+        text(page,"Codex 安卓助手",27);text(page,"Android 13+ · 测试版 0.1.11\n仅允许你勾选的应用。电脑端运行期间断网会自动等待重连；电脑或电脑端程序重启后地址会变，需要用新配对码重新连接。",15);
         button(page,"开启通知",v->requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},7));
         button(page,"开启无障碍服务",v->startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
         text(page,"电脑配对码",19);
@@ -74,6 +76,8 @@ public final class MainActivity extends Activity {
         durationValue=new EditText(this);durationValue.setInputType(InputType.TYPE_CLASS_NUMBER);durationValue.setFilters(new InputFilter[]{new InputFilter.LengthFilter(6)});durationValue.setText("1");durationValue.setHint("时长");timing.addView(durationValue,new LinearLayout.LayoutParams(0,-2,1));
         durationUnit=new Spinner(this);durationUnit.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,new String[]{"分钟","小时","天"}));durationUnit.setSelection(2);timing.addView(durationUnit,new LinearLayout.LayoutParams(0,-2,1));
         text(page,"默认1天。例如：输入7并选择“天”，就是7天。授权不会因重连而延长，手机与电脑配对以先到期者为准。",14);
+        screenshots=new CheckBox(this);screenshots.setText("允许截图识别（有些应用读不到按钮时自动使用，屏幕画面会发送到电脑和 AI 服务）");screenshots.setTextSize(15);screenshots.setSaveEnabled(false);screenshots.setFilterTouchesWhenObscured(true);screenshots.setChecked(true);page.addView(screenshots);
+        screenshots.setOnCheckedChangeListener((b,checked)->{cancelProposed();if(Session.current!=null)stopLocal();});
         text(page,"断网会等待重连；锁屏暂停操作，解锁后恢复。点停止、改勾选、停用无障碍或到期会撤销。程序不能解锁手机；手机重启或服务被系统结束后，需要本机重新授权。屏幕文字会发送到你的电脑及当前AI服务。",14);
         LinearLayout footer=new LinearLayout(this);footer.setOrientation(LinearLayout.VERTICAL);footer.setPadding(dp(16),dp(8),dp(16),dp(10));footer.setBackgroundColor(Color.WHITE);root.addView(footer,new LinearLayout.LayoutParams(-1,-2));
         state=text(footer,"",15);state.setPadding(0,0,0,dp(6));LinearLayout actions=new LinearLayout(this);actions.setOrientation(LinearLayout.HORIZONTAL);footer.addView(actions);
@@ -104,13 +108,20 @@ public final class MainActivity extends Activity {
     }
     private CheckBox appBox(AppPage.Entry app){
         CheckBox box=new CheckBox(this);box.setText(getString(R.string.app_choice,app.label(),app.pkg()));box.setTextSize(15);box.setSaveEnabled(false);box.setFilterTouchesWhenObscured(true);box.setChecked(selected.contains(app.pkg()));
-        box.setOnCheckedChangeListener((b,checked)->{if(checked)selected.add(app.pkg());else selected.remove(app.pkg());renderApps();if(Session.current!=null)stopLocal();});
+        box.setOnCheckedChangeListener((b,checked)->{if(checked)selected.add(app.pkg());else selected.remove(app.pkg());renderApps();cancelProposed();if(Session.current!=null)stopLocal();});
         return box;
     }
     private void stopLocal(){if(Session.current!=null)Session.current.stop();stopService(new Intent(this,BridgeService.class));Session.lastStatus="已停止并撤销授权";refresh();Toast.makeText(this,"已停止并撤销授权",Toast.LENGTH_SHORT).show();}
-    @Override public void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);readIntent(intent);}
+    private void cancelProposed(){if(proposed!=null){proposed.stop();proposed=null;}confirmingIdentity=false;}
+    private void resetScreenshotChoice(){
+        cancelProposed();screenshots.setChecked(true);
+        // Reopening defaults to checked, but must never upgrade an existing grant.
+        if(Session.current!=null&&!Session.current.screenshotAllowed)stopLocal();
+    }
+    @Override protected void onStart(){super.onStart();if(!confirmingIdentity)resetScreenshotChoice();}
+    @Override public void onNewIntent(Intent intent){super.onNewIntent(intent);resetScreenshotChoice();setIntent(intent);readIntent(intent);}
     private void readIntent(Intent intent){if(intent.getData()!=null){pairing.setText(intent.getData().toString());intent.setData(null);}}
-    @Override public void onResume(){super.onResume();statusHandler.removeCallbacks(updateStatus);updateStatus.run();}
+    @Override public void onResume(){super.onResume();confirmingIdentity=false;statusHandler.removeCallbacks(updateStatus);updateStatus.run();}
     @Override public void onPause(){statusHandler.removeCallbacks(updateStatus);super.onPause();}
     private void refresh(){
         Session active=Session.current;if(active!=null&&!active.live()){active.stop();stopService(new Intent(this,BridgeService.class));Session.lastStatus="授权已到期，已停止";active=null;}
@@ -124,10 +135,10 @@ public final class MainActivity extends Activity {
         KeyguardManager km=getSystemService(KeyguardManager.class);if(!km.isDeviceSecure()){fail("请先设置锁屏密码，授权需要本机身份确认。");return;}
         try{
             if(selected.isEmpty()||selected.size()>500)throw new IllegalArgumentException("请勾选1至500个允许使用的应用");
-            proposed=Session.create(pairing.getText().toString(),selected,Duration.minutes(durationValue.getText().toString(),durationUnit.getSelectedItemPosition()));
-            new AlertDialog.Builder(this).setTitle("确认连接你的电脑").setMessage("连接地址：\n"+proposed.endpoint+"\n\n授权应用数："+selected.size()+"\n有效时长："+Duration.remaining((proposed.expires-SystemClock.elapsedRealtime())/1000)+"\n\n电脑或电脑端程序重启后地址会变，需用新配对码重新连接。请核对地址与电脑网页一致。")
-                .setNegativeButton("取消",(d,w)->{proposed.stop();proposed=null;})
-                .setPositiveButton("验证身份并开始",(d,w)->startActivityForResult(km.createConfirmDeviceCredentialIntent("开启Codex手机会话","确认你勾选的应用和授权时限"),AUTHORIZE)).show();
+            proposed=Session.create(pairing.getText().toString(),selected,Duration.minutes(durationValue.getText().toString(),durationUnit.getSelectedItemPosition()),screenshots.isChecked());
+            new AlertDialog.Builder(this).setTitle("确认连接你的电脑").setMessage("连接地址：\n"+proposed.endpoint+"\n\n授权应用数："+selected.size()+"\n截图识别："+(proposed.screenshotAllowed?"允许（读不到按钮时使用）":"不允许")+"\n有效时长："+Duration.remaining((proposed.expires-SystemClock.elapsedRealtime())/1000)+"\n\n电脑或电脑端程序重启后地址会变，需用新配对码重新连接。请核对地址与电脑网页一致。")
+                .setNegativeButton("取消",(d,w)->cancelProposed())
+                .setPositiveButton("验证身份并开始",(d,w)->{if(proposed==null)return;confirmingIdentity=true;startActivityForResult(km.createConfirmDeviceCredentialIntent("开启Codex手机会话","确认你勾选的应用、截图选项和授权时限"),AUTHORIZE);}).setOnCancelListener(d->cancelProposed()).show();
         }catch(Exception e){if(proposed!=null){proposed.stop();proposed=null;}fail(e.getMessage()==null?"配对码无效":e.getMessage());}
     }
     @Override protected void onActivityResult(int request,int result,Intent data){

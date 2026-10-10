@@ -1,4 +1,5 @@
 import {dashboardScript} from './dashboard.mjs';
+import {favicon} from './favicon.mjs';
 import http from 'node:http';
 import {randomBytes, timingSafeEqual} from 'node:crypto';
 import {performance} from 'node:perf_hooks';
@@ -41,7 +42,7 @@ export class Broker {
       if(record.expiresAt>Date.now()){
         this.session=this.makeSession(record);this.restored=true;
         // A read cannot alter the phone; an unfinished write needs its receipt.
-        if(this.session.recovered?.tool==='phone_read_screen'){this.session.recovered=null;this.session.journal=null;this.persist();}
+        if(['phone_read_screen','phone_screenshot'].includes(this.session.recovered?.tool)){this.session.recovered=null;this.session.journal=null;this.persist();}
         this.ready=true;return this.pairing();
       }
       this.persist();this.ready=true;return null;
@@ -81,6 +82,7 @@ export class Broker {
     if(!c||performance.now()-c.lastSeen>35000)throw new Error('phone_not_connected');
     if(c.phone?.locked)throw new Error('phone_locked_unlock_locally');
     if(c.phone?.remainingSeconds===0)throw new Error('phone_authorization_expired');
+    if(['phone_screenshot','phone_tap_point'].includes(name)&&c.phone?.screenshotAllowed!==true)throw new Error('screenshot_not_allowed_on_phone');
     if(c.pending)throw new Error('another_command_pending');
     return new Promise((resolve,reject)=>{
       const id=randomBytes(16).toString('hex');s.journal={id,tool:name,since:Date.now()};
@@ -92,7 +94,7 @@ export class Broker {
   }
   commandTimeout(s,c,id){
     if(this.session!==s||c.pending?.id!==id)return;
-    const unsent=c.queue.some(command=>command.id===id),readOnly=s.journal?.tool==='phone_read_screen';
+    const unsent=c.queue.some(command=>command.id===id),readOnly=['phone_read_screen','phone_screenshot'].includes(s.journal?.tool);
     // A queued request has never been handed to the transport. Remove it so a
     // delayed poll cannot execute it after the caller was told it timed out.
     // A dispatched write remains in the durable journal until its receipt or
@@ -105,7 +107,7 @@ export class Broker {
   }
   phoneStatus(phone){
     if(!phone||!Array.isArray(phone.apps)||phone.apps.length>500||phone.apps.some(p=>typeof p!=='string'||p.length>200))throw new Error('invalid_phone_status');
-    const result={apps:phone.apps,remainingSeconds:Math.max(0,Math.min(MAX_DURATION_MS/1000,Number(phone.remainingSeconds)||0))};
+    const result={apps:phone.apps,screenshotAllowed:phone.screenshotAllowed===true,remainingSeconds:Math.max(0,Math.min(MAX_DURATION_MS/1000,Number(phone.remainingSeconds)||0))};
     if(typeof phone.version==='string'&&/^\d+\.\d+\.\d+$/.test(phone.version)&&phone.version.length<32)result.version=phone.version;
     if(typeof phone.locked==='boolean')result.locked=phone.locked;return result;
   }
@@ -148,7 +150,7 @@ export class Broker {
       const phone=this.phoneStatus(data.phone);this.finishReceipt(s,data.receipt);
       if(s.connection?.pending)return json(res,409,{error:'another_command_pending'});
       const id=s.id+':'+data.client,c={id,...credentials(s.master,id),tx:1,rx:0,lastSeen:performance.now(),phone,pending:null,queue:[],wake:null,pollBusy:false};
-      this.endConnection(s.connection,'connection_replaced');s.challenges.delete(data.client);s.clients.add(data.client);if(s.clients.size>4096)s.clients.delete(s.clients.values().next().value);s.connection=c;this.lastPhoneError=null;
+      this.endConnection(s.connection,'connection_replaced');s.challenges.delete(data.client);s.clients.add(data.client);if(s.clients.size>4096)s.clients.delete(s.clients.values().next().value);s.connection=c;this.lastPhoneError=null;this.operator.lastAutoScreenshotSignature=undefined;
       return json(res,200,seal(c.key,c.id,'desktop',1,{event:'connected',client:data.client,recoveryRequired:!!s.recovered}));
     }catch(e){this.lastPhoneError='invalid_connect_request';if(!res.headersSent)json(res,400,{error:'invalid_connect_request'});}finally{s.connectBusy=false;}
   }
@@ -201,7 +203,7 @@ export class Broker {
     if(!this.apkQr)this.apkQr=(await import('qrcode')).default.toDataURL(apkUrl,{width:320,margin:2});
     const apkQr=await this.apkQr;
     res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':`default-src 'none'; img-src data:; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`,'Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'});
-    res.end(`<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Codex 安卓助手</title><style nonce="${nonce}">body{max-width:760px;margin:32px auto;padding:0 20px;font:17px/1.65 system-ui;background:#edf4f0;color:#123c35}main{background:white;padding:28px;border-radius:20px}h1{font-size:28px}button{padding:12px 18px;border:0;border-radius:10px;margin:6px;background:#123c35;color:white;cursor:pointer}textarea{width:100%;height:90px;font-size:13px}input,select{padding:10px;font:inherit}input{width:90px}pre{white-space:pre-wrap;background:#edf4f0;padding:16px}img{max-width:100%}.muted{color:#54675e;font-size:14px}.danger{background:#9b3131}</style><main><h1>Codex 安卓助手</h1><p>手机安装 APK 后，复制配对码或扫码；在手机勾选应用、自选授权时长并确认开始。</p><p><b>手机还没装 App？用手机相机扫这个二维码下载</b><br><img alt="下载手机 App 的二维码" src="${apkQr}"><br><span class="muted">${apkUrl}</span></p><p><b>配对二维码（App 装好后用手机相机扫这个）</b></p><img id="qr" alt="仅供你自己的手机扫描的配对码" src="${qr}" ${qr?'':'hidden'}><textarea readonly id="pair"></textarea><p class="muted">连接地址：${endpoint}（手机点“确认并开始”后弹窗里显示的地址应与这里相同）</p><p class="muted">默认使用 Cloudflare 临时通道：电脑或电脑端程序重启后地址会变，需要在手机上用新配对码重新连接。临时关机不会撤销授权；要结束请点“立即撤销”。配对码等同密码，不要分享。</p><button id="copy">复制配对码</button><p>新配对有效期：<input id="duration-value" type="number" min="1" value="1"><select id="duration-unit"><option value="days">天</option><option value="hours">小时</option><option value="minutes">分钟</option></select>（最长30天；实际操作按手机授权时长）</p><button id="new">重新配对并使用此时长</button><button id="stop" class="danger">立即撤销</button><pre id="status">正在读取状态</pre><button id="review" class="danger" hidden>已核对手机，解除未确认操作阻塞</button><p class="muted">更改手机应用勾选、到期、停止或停用无障碍会结束授权。锁屏期间暂停操作，解锁后恢复；程序不能解锁手机。手机服务被系统结束或手机重启，需要本机重新授权。</p></main><script nonce="${nonce}">${dashboardScript(this.adminKey,pairing,pairId)}</script></html>`);
+    res.end(`<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Codex 安卓助手</title><link rel="icon" type="image/png" href="${favicon}"><style nonce="${nonce}">body{max-width:760px;margin:32px auto;padding:0 20px;font:17px/1.65 system-ui;background:#edf4f0;color:#123c35}main{background:white;padding:28px;border-radius:20px}h1{font-size:28px}button{padding:12px 18px;border:0;border-radius:10px;margin:6px;background:#123c35;color:white;cursor:pointer}textarea{width:100%;height:90px;font-size:13px}input,select{padding:10px;font:inherit}input{width:90px}pre{white-space:pre-wrap;background:#edf4f0;padding:16px}img{max-width:100%}.muted{color:#54675e;font-size:14px}.danger{background:#9b3131}</style><main><h1>Codex 安卓助手</h1><p>手机安装 APK 后，复制配对码或扫码；在手机勾选应用、自选授权时长并确认开始。</p><p><b>手机还没装 App？用手机相机扫这个二维码下载</b><br><img alt="下载手机 App 的二维码" src="${apkQr}"><br><span class="muted">${apkUrl}</span></p><p><b>配对二维码（App 装好后用手机相机扫这个）</b></p><img id="qr" alt="仅供你自己的手机扫描的配对码" src="${qr}" ${qr?'':'hidden'}><textarea readonly id="pair"></textarea><p class="muted">连接地址：${endpoint}（手机点“确认并开始”后弹窗里显示的地址应与这里相同）</p><p class="muted">默认使用 Cloudflare 临时通道：电脑或电脑端程序重启后地址会变，需要在手机上用新配对码重新连接。临时关机不会撤销授权；要结束请点“立即撤销”。配对码等同密码，不要分享。</p><button id="copy">复制配对码</button><p>新配对有效期：<input id="duration-value" type="number" min="1" value="1"><select id="duration-unit"><option value="days">天</option><option value="hours">小时</option><option value="minutes">分钟</option></select>（最长30天；实际操作按手机授权时长）</p><button id="new">重新配对并使用此时长</button><button id="stop" class="danger">立即撤销</button><pre id="status">正在读取状态</pre><button id="review" class="danger" hidden>已核对手机，解除未确认操作阻塞</button><p class="muted">更改手机应用勾选、到期、停止或停用无障碍会结束授权。锁屏期间暂停操作，解锁后恢复；程序不能解锁手机。手机服务被系统结束或手机重启，需要本机重新授权。</p></main><script nonce="${nonce}">${dashboardScript(this.adminKey,pairing,pairId)}</script></html>`);
   }
   async close({revoke=false}={}){
     if(revoke)this.revoke('desktop_stopped');else{const s=this.session;this.session=null;if(s){this.endConnection(s.connection,'desktop_stopped_check_receipt_before_retry');s.master.fill(0);s.key.fill(0);}}

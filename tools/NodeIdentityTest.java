@@ -26,6 +26,9 @@ public final class NodeIdentityTest {
         NodeIdentity title=new NodeIdentity("selected.app","title","TextView","bottom shop","",false,false);
         check(title.matches(title,"phone_click"),"touch tap can target visible non-clickable title");
         check(!title.matches(new NodeIdentity("selected.app","title","TextView","another shop","",false,false),"phone_click"),"touch tap cannot silently target a replaced title");
+        check(button.matches(button,"phone_long_press"),"long press accepts same visible node");
+        check(!button.matches(new NodeIdentity("selected.app","item","Button","other store","商品",false,false),"phone_long_press"),"long press refuses recycled content");
+        check(!button.matches(new NodeIdentity("other.app","item","Button","天猫超市","商品",false,false),"phone_long_press"),"long press refuses other apps");
         System.out.println("node_identity_checks="+checks);
     }
 }
