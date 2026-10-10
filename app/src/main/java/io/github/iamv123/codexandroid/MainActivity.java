@@ -22,16 +22,19 @@ public final class MainActivity extends Activity {
     private final Map<String,CheckBox> apps = new LinkedHashMap<>();
     private Spinner duration;
     private Session proposed;
+    private ScrollView scroll;
     private static final int AUTHORIZE=42;
+    private final android.os.Handler statusHandler=new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable updateStatus=new Runnable(){@Override public void run(){refresh();statusHandler.postDelayed(this,1000);}};
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         getWindow().setHideOverlayWindows(true);
-        ScrollView scroll = new ScrollView(this);
+        scroll = new ScrollView(this);
         LinearLayout page = new LinearLayout(this); page.setOrientation(LinearLayout.VERTICAL); page.setPadding(32,40,32,40);
         scroll.addView(page); setContentView(scroll);
         text(page,"Codex 安卓助手",28);
-        text(page,"Android 13+ · 测试版 0.1.0\n你勾选的应用，Codex 才能读取和操作。默认无应用授权。",16);
+        text(page,"Android 13+ · 测试版 0.1.2\n你勾选的应用，Codex 才能读取和操作。默认无应用授权。",16);
         state=text(page,"",16);
         button(page,"1. 开启通知",v->requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},7));
         button(page,"2. 开启无障碍服务",v->startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
@@ -61,8 +64,9 @@ public final class MainActivity extends Activity {
     private void button(LinearLayout parent,String label,View.OnClickListener action){Button b=new Button(this);b.setText(label);b.setFilterTouchesWhenObscured(true);b.setOnClickListener(action);parent.addView(b);}
     @Override public void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);readIntent(intent);}
     private void readIntent(Intent intent){if(intent.getData()!=null){pairing.setText(intent.getData().toString());intent.setData(null);}}
-    @Override public void onResume(){super.onResume();refresh();}
-    private void refresh(){if(state!=null)state.setText(Session.current!=null&&Session.current.live()?"当前：会话已开启；可从通知停止":"当前：未授权 / 未连接");}
+    @Override public void onResume(){super.onResume();statusHandler.removeCallbacks(updateStatus);updateStatus.run();}
+    @Override public void onPause(){statusHandler.removeCallbacks(updateStatus);super.onPause();}
+    private void refresh(){if(state!=null)state.setText(Session.lastStatus);}
     private void fail(String message){new AlertDialog.Builder(this).setTitle("未开始").setMessage(message).setPositiveButton("知道了",null).show();}
     private void prepare(){
         if(Session.current!=null){fail("请先停止当前会话。");return;}
@@ -78,5 +82,5 @@ public final class MainActivity extends Activity {
                 .setPositiveButton("验证身份并开始",(d,w)->startActivityForResult(km.createConfirmDeviceCredentialIntent("开启 Codex 手机会话","确认你在手机上勾选的应用和授权时限"),AUTHORIZE)).show();
         }catch(Exception e){fail(e.getMessage()==null?"配对码无效":e.getMessage());}
     }
-    @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==AUTHORIZE&&proposed!=null){if(result==RESULT_OK){Session.current=proposed;proposed=null;pairing.setText("");startForegroundService(new Intent(this,BridgeService.class));refresh();moveTaskToBack(true);}else{proposed.stop();proposed=null;}}}
+    @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==AUTHORIZE&&proposed!=null){if(result==RESULT_OK){Session.current=proposed;proposed=null;Session.lastStatus="正在启动连接";pairing.setText("");try{startForegroundService(new Intent(this,BridgeService.class));}catch(RuntimeException e){Session.lastStatus="连接失败：系统未允许启动连接服务";Session.current.stop();fail(Session.lastStatus);}refresh();scroll.post(()->scroll.smoothScrollTo(0,0));}else{proposed.stop();proposed=null;}}}
 }

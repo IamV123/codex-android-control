@@ -11,6 +11,19 @@ export function allocation(info) {
   return {url:url.origin,port:info.port};
 }
 
+// A pre-opened HTTP socket can expire before the relay sends its first request,
+// leaving a stale 408 response in the stream. Open the local socket on data.
+export function forwardFirstRequest(remote,phonePort){
+  let local;
+  remote.once('data',first=>{
+    remote.pause();if(remote.destroyed)return;
+    local=net.connect({host:'127.0.0.1',port:phonePort});
+    local.on('error',()=>remote.destroy());local.once('close',()=>remote.destroy());
+    local.once('connect',()=>{if(remote.destroyed){local.destroy();return;}local.write(first);remote.pipe(local).pipe(remote);remote.resume();});
+  });
+  remote.once('close',()=>local?.destroy());
+}
+
 export async function startLocalTunnel(phonePort,{onFailure=()=>{}}={}) {
   if(!Number.isInteger(phonePort)||phonePort<1||phonePort>65535)throw new Error('invalid_phone_port');
   const response=await fetch('https://localtunnel.me/?new',{redirect:'error',signal:AbortSignal.timeout(10000)});
@@ -23,16 +36,14 @@ export async function startLocalTunnel(phonePort,{onFailure=()=>{}}={}) {
   function connect() {
     if(closed)return;
     const remote=net.connect({host:'localtunnel.me',port:info.port});sockets.add(remote);
-    let local,counted=false;
+    let counted=false;
     remote.setTimeout(7000,()=>remote.destroy());remote.on('error',()=>remote.destroy());
     remote.once('connect',()=>{
       if(closed){remote.destroy();return;}
       remote.setTimeout(0);remote.setKeepAlive(true,10000);counted=true;open++;lastConnected=Date.now();
-      remote.pause();local=net.connect({host:'127.0.0.1',port:phonePort});sockets.add(local);
-      local.on('error',()=>remote.destroy());local.once('close',()=>{sockets.delete(local);remote.destroy();});
-      local.once('connect',()=>{if(closed){local.destroy();return;}remote.pipe(local).pipe(remote);remote.resume();readyResolve();});
+      forwardFirstRequest(remote,phonePort);readyResolve();
     });
-    remote.once('close',()=>{sockets.delete(remote);if(counted){open--;lastConnected=Date.now();}local?.destroy();if(!closed)schedule(connect);});
+    remote.once('close',()=>{sockets.delete(remote);if(counted){open--;lastConnected=Date.now();}if(!closed)schedule(connect);});
   }
   function close(){closed=true;clearInterval(monitor);for(const t of timers)clearTimeout(t);timers.clear();for(const s of sockets)s.destroy();sockets.clear();}
   const monitor=setInterval(()=>{if(!closed&&open===0&&Date.now()-lastConnected>12000){close();onFailure(new Error('backup_tunnel_disconnected'));}},1000);

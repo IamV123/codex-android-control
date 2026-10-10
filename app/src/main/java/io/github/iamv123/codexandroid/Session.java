@@ -13,6 +13,7 @@ import java.util.Set;
 
 final class Session {
     static volatile Session current;
+    static volatile String lastStatus="未授权 / 未连接";
     final String endpoint, id, token;
     final byte[] key;
     final Set<String> grants;
@@ -49,6 +50,6 @@ final class Session {
         if (!live()) throw new SecurityException("session_ended");
         if (!unlocked(ctx)) { stop(); throw new SecurityException("phone_locked_session_revoked"); }
     }
-    synchronized void stop() { stopped = true; Arrays.fill(key, (byte) 0); if (current == this) current = null; Approval.cancel("session_ended"); }
+    synchronized void stop() { stopped = true; Arrays.fill(key, (byte) 0); if (current == this) {current = null;if(!lastStatus.startsWith("连接失败"))lastStatus="会话已停止，请重新配对";} Approval.cancel("session_ended"); }
     JSONObject status() throws Exception { return new JSONObject().put("apps", new org.json.JSONArray(grants)).put("remainingSeconds", Math.max(0, (expires-SystemClock.elapsedRealtime())/1000)); }
 }

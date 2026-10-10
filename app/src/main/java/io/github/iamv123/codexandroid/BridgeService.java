@@ -6,7 +6,6 @@ import android.os.*;
 import org.json.JSONObject;
 import javax.net.ssl.HttpsURLConnection;
 import java.io.*;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 
@@ -15,6 +14,8 @@ public final class BridgeService extends Service {
     private volatile HttpsURLConnection connection;
     private Session active;
     private volatile long lastSuccess;
+    private Notification.Builder sessionNote;
+    private boolean connected;
     private final Handler main=new Handler(Looper.getMainLooper());
     private final BroadcastReceiver lock=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){stopNow();}};
     @Override public void onCreate(){super.onCreate();registerReceiver(lock,new IntentFilter(Intent.ACTION_SCREEN_OFF),Context.RECEIVER_NOT_EXPORTED);}
@@ -26,7 +27,9 @@ public final class BridgeService extends Service {
         NotificationManager nm=getSystemService(NotificationManager.class);nm.createNotificationChannel(new NotificationChannel("session","远程会话（可随时停止）",NotificationManager.IMPORTANCE_LOW));
         PendingIntent stop=PendingIntent.getService(this,1,new Intent(this,BridgeService.class).setAction("STOP"),PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
         PendingIntent open=PendingIntent.getActivity(this,0,new Intent(this,MainActivity.class),PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
-        startForeground(1,new Notification.Builder(this,"session").setSmallIcon(R.drawable.ic_app).setContentTitle("Codex 手机会话已开启").setContentText("仅限勾选应用 · 锁屏自动停止").setContentIntent(open).addAction(new Notification.Action.Builder(null,"立即停止",stop).build()).setOngoing(true).setVisibility(Notification.VISIBILITY_PUBLIC).build());
+        nm.cancel(3);Session.lastStatus="正在连接电脑，请保持手机解锁";
+        sessionNote=new Notification.Builder(this,"session").setSmallIcon(R.drawable.ic_app).setContentTitle("Codex 手机正在连接").setContentText("仅限勾选应用 · 锁屏自动停止").setContentIntent(open).addAction(new Notification.Action.Builder(null,"立即停止",stop).build()).setOngoing(true).setOnlyAlertOnce(true).setVisibility(Notification.VISIBILITY_PUBLIC);
+        try{startForeground(1,sessionNote.build());}catch(RuntimeException e){reportFailure(e);stopNow();return START_NOT_STICKY;}
         lastSuccess=SystemClock.elapsedRealtime();worker=new Thread(this::loop,"codex-phone-channel");worker.start();
         main.post(new Runnable(){@Override public void run(){if(active==null||!active.live()||!active.unlocked(BridgeService.this)||SystemClock.elapsedRealtime()-lastSuccess>65000){stopNow();return;}main.postDelayed(this,1000);}});
         return START_NOT_STICKY;
@@ -38,6 +41,7 @@ public final class BridgeService extends Service {
                 JSONObject payload=new JSONObject().put("event",response==null?"poll":"result").put("phone",active.status());
                 if(response!=null)payload.put("response",response);
                 JSONObject returned=exchange(payload);lastSuccess=SystemClock.elapsedRealtime();response=null;
+                if(active.live()){Session.lastStatus="已连接电脑；可按 Home 键返回已授权应用。锁屏或点停止可撤销";if(!connected){connected=true;getSystemService(NotificationManager.class).notify(1,sessionNote.setContentTitle("Codex 手机会话已连接").build());}}
                 JSONObject command=returned.optJSONObject("command");
                 if(command==null)continue;
                 String id=command.getString("id");response=new JSONObject().put("id",id);
@@ -47,23 +51,24 @@ public final class BridgeService extends Service {
                     response.put("ok",true).put("data",result);
                 }catch(Exception e){Throwable cause=e.getCause()==null?e:e.getCause();response.put("ok",false).put("error",cause.getMessage()==null?"operation_rejected":cause.getMessage());}
             }catch(SecurityException e){throw e;}
-            catch(IOException e){
-                // An exchange may already have delivered a command/result. Never replay it.
-                throw new SecurityException("connection_lost_repair_required");
-            }
+            catch(IOException e){throw e;} // Never replay a possibly delivered request.
         }
-    }catch(Exception ignored){/* No tokens, app text or input are written to logs. */}finally{main.post(this::stopNow);}}
+    }catch(Exception e){reportFailure(e);}finally{main.post(this::stopNow);}}
+    private void reportFailure(Exception error){
+        if(active==null||!active.live())return;
+        Session.lastStatus="连接失败："+PhoneHttp.describe(error);
+        NotificationManager nm=getSystemService(NotificationManager.class);
+        nm.createNotificationChannel(new NotificationChannel("connection_errors","连接问题",NotificationManager.IMPORTANCE_DEFAULT));
+        PendingIntent open=PendingIntent.getActivity(this,0,new Intent(this,MainActivity.class),PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
+        nm.notify(3,new Notification.Builder(this,"connection_errors").setSmallIcon(R.drawable.ic_app).setContentTitle("Codex 连接未成功").setContentText(Session.lastStatus).setStyle(new Notification.BigTextStyle().bigText(Session.lastStatus)).setContentIntent(open).setAutoCancel(true).setVisibility(Notification.VISIBILITY_PRIVATE).build());
+    }
     private JSONObject exchange(JSONObject payload)throws Exception{
         long seq=++active.tx;Crypto.Envelope enc=Crypto.seal(active.key,active.id,"phone",seq,payload.toString());
         byte[] bytes=new JSONObject().put("session",active.id).put("seq",seq).put("nonce",enc.nonce).put("data",enc.data).toString().getBytes(StandardCharsets.UTF_8);
-        HttpsURLConnection c=(HttpsURLConnection)new URL(active.endpoint+"/phone/v1/exchange").openConnection();connection=c;
-        c.setInstanceFollowRedirects(false);c.setConnectTimeout(10000);c.setReadTimeout(25000);c.setRequestMethod("POST");c.setDoOutput(true);c.setRequestProperty("Content-Type","application/json");c.setRequestProperty("Authorization","Bearer "+active.token);c.setFixedLengthStreamingMode(bytes.length);
+        HttpsURLConnection c=PhoneHttp.open(active.endpoint,active.token,bytes.length);connection=c;
         try{
             try(OutputStream out=c.getOutputStream()){out.write(bytes);}
-            if(c.getResponseCode()!=200)throw new SecurityException("desktop_session_rejected");
-            ByteArrayOutputStream out=new ByteArrayOutputStream();byte[] block=new byte[8192];int n;
-            try(InputStream in=c.getInputStream()){while((n=in.read(block))!=-1){if(out.size()+n>360000)throw new SecurityException("response_too_large");out.write(block,0,n);}}
-            JSONObject frame=new JSONObject(out.toString(StandardCharsets.UTF_8));long received=frame.getLong("seq");
+            JSONObject frame=new JSONObject(new String(PhoneHttp.read(c),StandardCharsets.UTF_8));long received=frame.getLong("seq");
             if(!active.id.equals(frame.getString("session"))||received<=active.rx)throw new SecurityException("replay_or_wrong_session");
             JSONObject data=new JSONObject(Crypto.open(active.key,active.id,"desktop",received,frame.getString("nonce"),frame.getString("data")));active.rx=received;return data;
         }finally{connection=null;c.disconnect();}
